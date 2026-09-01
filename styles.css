@@ -1,0 +1,85 @@
+:root {
+  --section-spacing: 6rem;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.hero {
+  min-height: 42vh;
+  display: flex;
+  align-items: center;
+}
+
+.section-padding {
+  padding-block: var(--section-spacing);
+}
+
+.project-section + .project-section {
+  border-top: 1px solid var(--bs-border-color);
+}
+
+.home-section {
+    position: relative;
+    padding: 2rem 1rem;
+
+    border-top: 1px solid #dee2e6;
+
+    cursor: pointer;
+
+    transition:
+        background-color 0.2s ease,
+        transform 0.15s ease,
+        padding-left 0.2s ease;
+}
+
+/* Add a bottom border only to the last project */
+.home-section:last-child {
+    border-bottom: 1px solid #dee2e6;
+}
+
+/* Hover effect */
+.home-section:hover {
+    background-color: #f8f9fa;
+    padding-left: 1.5rem;
+}
+
+/* Click / press effect */
+.home-section:active {
+    background-color: #e9ecef;
+    transform: scale(0.99);
+}
+
+.media-frame {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 0.75rem;
+  background: var(--bs-secondary-bg);
+}
+
+.gif-frame {
+  width: 100%;
+  max-height: 620px;
+  object-fit: contain;
+  border-radius: 0.75rem;
+  background: var(--bs-secondary-bg);
+}
+
+.figure-caption {
+  font-size: 0.95rem;
+}
+
+.project-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.project-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--bs-box-shadow-sm);
+}
