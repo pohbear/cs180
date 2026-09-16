@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CS180 - Project 1</title>
+  <meta name="description" content="CS180 Project 1: aligning and colorizing Prokudin-Gorskii glass plate photographs">
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <!-- NAVBAR -->
+  <nav class="navbar navbar-expand-lg bg-body-tertiary border-bottom sticky-top">
+    <div class="container">
+      <a class="navbar-brand fw-semibold" href="../index.html">CS180</a>
+
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="mainNavbar">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="../index.html#projects">Projects</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <!-- PROJECT HEADER -->
+    <header class="bg-body-tertiary py-5">
+      <div class="container py-4">
+        <div class="row">
+          <div class="col-lg-9">
+            <a href="../index.html#projects" class="link-secondary text-decoration-none">← Back to projects</a>
+            <p class="text-uppercase text-secondary fw-semibold mt-4 mb-2">CS180 Project 1</p>
+            <h1 class="display-4 fw-bold">Images of the Russian Empire</h1>
+            <p class="lead text-secondary project-summary mb-4">
+              My attempt at turning Sergei Prokudin-Gorskii's three black-and-white exposures into color photographs by automatically aligning their blue, green, and red channels.
+            </p>
+            <div class="project-jump-links d-flex flex-wrap gap-2" aria-label="Jump to a project section">
+              <a class="btn btn-outline-secondary" href="#overview">Overview</a>
+              <a class="btn btn-outline-secondary" href="#single-scale">Single-scale</a>
+              <a class="btn btn-outline-secondary" href="#pyramid">Image pyramid</a>
+              <a class="btn btn-outline-secondary" href="#chosen-images">My examples</a>
+              <a class="btn btn-outline-secondary" href="#edge-alignment">Better features</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- OVERVIEW -->
+    <section id="overview" class="project-section section-padding">
+      <div class="container">
+        <div class="row justify-content-center">
+          <div class="col-lg-10">
+            <p class="text-secondary fw-semibold mb-2">Overview</p>
+            <h2 class="display-6 fw-bold mb-4">From Three Exposures to One Color Image</h2>
+
+            <p>
+              Prokudin-Gorskii photographed the same scene three times through blue, green, and red filters. The digitized plate stores those exposures vertically in BGR order. The general idea is simple: split the plate into three equal images, keep blue as the reference, shift green and red until they line up with blue, and then stack them back together in RGB order.
+            </p>
+
+            <div class="row g-4 align-items-center my-4">
+              <div class="col-lg-5">
+                <figure class="mb-0">
+                  <a class="image-link" href="../assets/images/cathedral.jpg" target="_blank" rel="noopener">
+                    <img src="../assets/images/cathedral.jpg" class="result-frame" alt="Original Cathedral glass plate with the three grayscale exposures stacked vertically">
+                  </a>
+                  <figcaption class="figure-caption mt-2">
+                    The original Cathedral glass plate. From top to bottom, the exposures are blue, green, and red.
+                  </figcaption>
+                </figure>
+              </div>
+              <div class="col-lg-7">
+                <ol class="mb-0">
+                  <li class="mb-3"><strong>Split the plate:</strong> divide the height by three and extract the B, G, and R grayscale images.</li>
+                  <li class="mb-3"><strong>Ignore the borders:</strong> I remove 10% from each side while scoring because the black and white plate edges contain weird stuff that is not part of the photograph.</li>
+                  <li class="mb-3"><strong>Search for a displacement:</strong> test possible <span class="offset-badge">(dy, dx)</span> shifts and compare only the region shared by both channels.</li>
+                  <li><strong>Reconstruct the color image:</strong> apply the best shifts and stack the aligned channels as red, green, and blue.</li>
+                </ol>
+              </div>
+            </div>
+
+            <p class="text-secondary full-size-hint mb-0">
+              Click any photograph on this page to open the full-resolution file.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SINGLE-SCALE ALIGNMENT -->
+    <section id="single-scale" class="project-section section-padding bg-body-tertiary">
+      <div class="container">
+        <div class="row justify-content-center">
+          <div class="col-lg-10">
+            <p class="text-secondary fw-semibold mb-2">Part 1</p>
+            <h2 class="display-6 fw-bold mb-4">Single-Scale Alignment</h2>
+
+            <p>
+              My first approach was a straightforward exhaustive search. For each green or red channel, I tried every integer displacement inside a <span class="offset-badge">[-15, 15] × [-15, 15]</span> window. That gives 961 possible shifts. For each one, I compared the valid overlapping region against the blue channel and kept the best score.
+            </p>
+
+            <div class="row g-4 my-4">
+              <div class="col-md-6">
+                <div class="method-card">
+                  <h3 class="h5">L2 distance</h3>
+                  <div class="formula mb-3">sqrt(mean((reference - moving)²))</div>
+                  <p class="mb-0">
+                    L2 measures the average pixel difference, so a lower score is better. It is simple and worked well on the small images, but it can struggle when the same object has very different brightness across color channels.
+                  </p>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="method-card">
+                  <h3 class="h5">Normalized cross-correlation</h3>
+                  <div class="formula mb-3">dot(A - mean(A), B - mean(B)) / (||A|| · ||B||)</div>
+                  <p class="mb-0">
+                    NCC removes each region's mean and normalizes its length before comparing them, so a higher score is better. This makes it less sensitive to a general brightness difference, although it does not completely solve channel-dependent color differences.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <p>
+              Both metrics found the same shifts for the three low-resolution images. Since every correct displacement is inside the small search window, there was no need for a pyramid yet.
+            </p>
+
+            <div class="row g-4 mt-2">
+              <div class="col-md-4">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_cathedral.jpg" target="_blank" rel="noopener">
+                    <img src="../assets/images/pyramid_l2_cathedral.jpg" class="result-frame" alt="Aligned color reconstruction of Cathedral">
+                  </a>
+                  <figcaption class="p-3">
+                    <strong>Cathedral</strong><br>
+                    <span class="figure-caption">G→B <span class="offset-badge">(5, 2)</span>, R→B <span class="offset-badge">(12, 3)</span></span>
+                  </figcaption>
+                </figure>
+              </div>
+              <div class="col-md-4">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_monastery.jpg" target="_blank" rel="noopener">
+                    <img src="../assets/images/pyramid_l2_monastery.jpg" class="result-frame" alt="Aligned color reconstruction of Monastery">
+                  </a>
+                  <figcaption class="p-3">
+                    <strong>Monastery</strong><br>
+                    <span class="figure-caption">G→B <span class="offset-badge">(-3, 2)</span>, R→B <span class="offset-badge">(3, 2)</span></span>
+                  </figcaption>
+                </figure>
+              </div>
+              <div class="col-md-4">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_tobolsk.jpg" target="_blank" rel="noopener">
+                    <img src="../assets/images/pyramid_l2_tobolsk.jpg" class="result-frame" alt="Aligned color reconstruction of Tobolsk">
+                  </a>
+                  <figcaption class="p-3">
+                    <strong>Tobolsk</strong><br>
+                    <span class="figure-caption">G→B <span class="offset-badge">(3, 3)</span>, R→B <span class="offset-badge">(6, 3)</span></span>
+                  </figcaption>
+                </figure>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- IMAGE PYRAMID -->
+    <section id="pyramid" class="project-section section-padding">
+      <div class="container">
+        <div class="row justify-content-center">
+          <div class="col-lg-10">
+            <p class="text-secondary fw-semibold mb-2">Part 2</p>
+            <h2 class="display-6 fw-bold mb-4">Coarse-to-Fine Image Pyramid</h2>
+
+            <p>
+              Searching only 15 pixels in each direction is not enough for the large TIFF files, while making the full-resolution window much larger would be really slow. I handled this by repeatedly resizing both channels to half their width and height with anti-aliasing, creating a Gaussian pyramid from the original image down to a small version.
+            </p>
+
+            <div class="row g-4 my-4">
+              <div class="col-md-4">
+                <div class="method-card">
+                  <p class="text-secondary fw-semibold mb-2">Step 1</p>
+                  <h3 class="h5">Start small</h3>
+                  <p class="mb-0">At the coarsest level, a large original displacement becomes only a few pixels, so I search the normal ±15 window around <span class="offset-badge">(0, 0)</span>.</p>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="method-card">
+                  <p class="text-secondary fw-semibold mb-2">Step 2</p>
+                  <h3 class="h5">Double the estimate</h3>
+                  <p class="mb-0">When moving to the next finer level, one coarse pixel becomes two pixels. I therefore double the previous <span class="offset-badge">(dy, dx)</span> estimate.</p>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="method-card">
+                  <p class="text-secondary fw-semibold mb-2">Step 3</p>
+                  <h3 class="h5">Refine nearby</h3>
+                  <p class="mb-0">I search only ±2 pixels around the doubled estimate, update the shift, and repeat until I return to the full-resolution image.</p>
+                </div>
+              </div>
+            </div>
+
+            <p>
+              This was much faster than doing one massive search. On my runs, the large images generally took around four seconds each with the L2 metric. The gallery below contains the full set of provided images. All offsets use <span class="offset-badge">(dy, dx)</span> and describe the shift applied to green or red to align it with blue.
+            </p>
+
+            <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-4 mt-2">
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_cathedral.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_cathedral.jpg" class="result-frame" alt="Cathedral pyramid alignment result"></a>
+                  <figcaption class="p-3"><strong>Cathedral</strong><br><span class="figure-caption">G→B <span class="offset-badge">(5, 2)</span> · R→B <span class="offset-badge">(12, 3)</span></span></figcaption>
+                </figure>
+              </div>
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_monastery.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_monastery.jpg" class="result-frame" alt="Monastery pyramid alignment result"></a>
+                  <figcaption class="p-3"><strong>Monastery</strong><br><span class="figure-caption">G→B <span class="offset-badge">(-3, 2)</span> · R→B <span class="offset-badge">(3, 2)</span></span></figcaption>
+                </figure>
+              </div>
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_tobolsk.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_tobolsk.jpg" class="result-frame" alt="Tobolsk pyramid alignment result"></a>
+                  <figcaption class="p-3"><strong>Tobolsk</strong><br><span class="figure-caption">G→B <span class="offset-badge">(3, 3)</span> · R→B <span class="offset-badge">(6, 3)</span></span></figcaption>
+                </figure>
+              </div>
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_church.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_church.jpg" class="result-frame" alt="Church pyramid alignment result"></a>
+                  <figcaption class="p-3"><strong>Church</strong><br><span class="figure-caption">G→B <span class="offset-badge">(25, 4)</span> · R→B <span class="offset-badge">(59, -4)</span></span></figcaption>
+                </figure>
+              </div>
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_emir.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_emir.jpg" class="result-frame" alt="Emir L2 pyramid alignment result"></a>
+                  <figcaption class="p-3"><strong>Emir</strong><br><span class="figure-caption">G→B <span class="offset-badge">(49, 24)</span> · R→B <span class="offset-badge">(101, 58)</span></span></figcaption>
+                </figure>
+              </div>
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_harvesters.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_harvesters.jpg" class="result-frame" alt="Harvesters pyramid alignment result"></a>
+                  <figcaption class="p-3"><strong>Harvesters</strong><br><span class="figure-caption">G→B <span class="offset-badge">(59, 16)</span> · R→B <span class="offset-badge">(124, 13)</span></span></figcaption>
+                </figure>
+              </div>
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_icon.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_icon.jpg" class="result-frame" alt="Icon pyramid alignment result"></a>
+                  <figcaption class="p-3"><strong>Icon</strong><br><span class="figure-caption">G→B <span class="offset-badge">(41, 17)</span> · R→B <span class="offset-badge">(90, 23)</span></span></figcaption>
+                </figure>
+              </div>
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_ilemselga.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_ilemselga.jpg" class="result-frame" alt="Ilemselga pyramid alignment result"></a>
+                  <figcaption class="p-3"><strong>Ilemselga</strong><br><span class="figure-caption">G→B <span class="offset-badge">(40, 7)</span> · R→B <span class="offset-badge">(130, 11)</span></span></figcaption>
+                </figure>
+              </div>
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_melons.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_melons.jpg" class="result-frame" alt="Melons pyramid alignment result"></a>
+                  <figcaption class="p-3"><strong>Melons</strong><br><span class="figure-caption">G→B <span class="offset-badge">(82, 11)</span> · R→B <span class="offset-badge">(178, 13)</span></span></figcaption>
+                </figure>
+              </div>
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_religous_painting.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_religous_painting.jpg" class="result-frame" alt="Religious painting pyramid alignment result"></a>
+                  <figcaption class="p-3"><strong>Religious Painting</strong><br><span class="figure-caption">G→B <span class="offset-badge">(28, 3)</span> · R→B <span class="offset-badge">(68, 7)</span></span></figcaption>
+                </figure>
+              </div>
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_self_portrait.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_self_portrait.jpg" class="result-frame" alt="Self Portrait pyramid alignment result"></a>
+                  <figcaption class="p-3"><strong>Self Portrait</strong><br><span class="figure-caption">G→B <span class="offset-badge">(79, 29)</span> · R→B <span class="offset-badge">(176, 37)</span></span></figcaption>
+                </figure>
+              </div>
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_siren.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_siren.jpg" class="result-frame" alt="Siren pyramid alignment result"></a>
+                  <figcaption class="p-3"><strong>Siren</strong><br><span class="figure-caption">G→B <span class="offset-badge">(49, -6)</span> · R→B <span class="offset-badge">(96, -25)</span></span></figcaption>
+                </figure>
+              </div>
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_three_generations.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_three_generations.jpg" class="result-frame" alt="Three Generations pyramid alignment result"></a>
+                  <figcaption class="p-3"><strong>Three Generations</strong><br><span class="figure-caption">G→B <span class="offset-badge">(53, 14)</span> · R→B <span class="offset-badge">(112, 11)</span></span></figcaption>
+                </figure>
+              </div>
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_wharf.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_wharf.jpg" class="result-frame" alt="Wharf pyramid alignment result"></a>
+                  <figcaption class="p-3"><strong>Wharf</strong><br><span class="figure-caption">G→B <span class="offset-badge">(15, -7)</span> · R→B <span class="offset-badge">(83, -16)</span></span></figcaption>
+                </figure>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CHOSEN IMAGES -->
+    <section id="chosen-images" class="project-section section-padding bg-body-tertiary">
+      <div class="container">
+        <div class="row justify-content-center">
+          <div class="col-lg-10">
+            <p class="text-secondary fw-semibold mb-2">Part 3</p>
+            <h2 class="display-6 fw-bold mb-4">Additional Images I Chose</h2>
+
+            <p>
+              I also tested the same fixed pyramid settings on four more plates from the Prokudin-Gorskii collection. I did not tune the search window separately for each photograph. This was mainly to check that the approach could generalize beyond the provided examples instead of only working on images I had already seen.
+            </p>
+
+            <div class="row row-cols-1 row-cols-md-2 g-4 mt-2">
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_boy.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_boy.jpg" class="result-frame" alt="Additional Boy plate alignment result"></a>
+                  <figcaption class="p-3"><strong>Boy</strong><br><span class="figure-caption">G→B <span class="offset-badge">(45, -13)</span> · R→B <span class="offset-badge">(103, -11)</span></span></figcaption>
+                </figure>
+              </div>
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_camel.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_camel.jpg" class="result-frame" alt="Additional Camel plate alignment result"></a>
+                  <figcaption class="p-3"><strong>Camel</strong><br><span class="figure-caption">G→B <span class="offset-badge">(20, 15)</span> · R→B <span class="offset-badge">(81, 38)</span></span></figcaption>
+                </figure>
+              </div>
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_carving.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_carving.jpg" class="result-frame" alt="Additional Carving plate alignment result"></a>
+                  <figcaption class="p-3"><strong>Carving</strong><br><span class="figure-caption">G→B <span class="offset-badge">(51, 0)</span> · R→B <span class="offset-badge">(125, -13)</span></span></figcaption>
+                </figure>
+              </div>
+              <div class="col">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/pyramid_l2_group.jpg" target="_blank" rel="noopener"><img src="../assets/images/pyramid_l2_group.jpg" class="result-frame" alt="Additional Group plate alignment result"></a>
+                  <figcaption class="p-3"><strong>Group</strong><br><span class="figure-caption">G→B <span class="offset-badge">(33, 7)</span> · R→B <span class="offset-badge">(113, 15)</span></span></figcaption>
+                </figure>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BELLS AND WHISTLES -->
+    <section id="edge-alignment" class="project-section section-padding">
+      <div class="container">
+        <div class="row justify-content-center">
+          <div class="col-lg-10">
+            <p class="text-secondary fw-semibold mb-2">Bells &amp; Whistles</p>
+            <h2 class="display-6 fw-bold mb-4">Better Features: Sobel Edge Alignment</h2>
+
+            <p>
+              The main failure case was Emir. His robe has a very strong blue color, so the same physical region appears with very different intensity in the three filtered exposures. Raw-pixel NCC assumes that the brightness patterns should still correlate, and it selected a clearly wrong red shift of <span class="offset-badge">(96, -250)</span>. This produced the obvious doubled face and robe shown below.
+            </p>
+
+            <p>
+              To improve this, I applied a small Gaussian blur with <span class="offset-badge">σ = 1.0</span> and then used a Sobel filter to build a normalized edge-magnitude image for each channel. I ran the same NCC pyramid alignment on those edge images, but applied the recovered shifts to the original grayscale channels. This lets the algorithm compare structural boundaries instead of relying as heavily on the channels having similar raw brightness.
+            </p>
+
+            <div class="row g-4 my-4">
+              <div class="col-lg-6">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/emir_raw_ncc.jpg" target="_blank" rel="noopener">
+                    <img src="../assets/images/emir_raw_ncc.jpg" class="comparison-frame" alt="Misaligned Emir reconstruction produced by raw-pixel NCC">
+                  </a>
+                  <figcaption class="p-3">
+                    <strong>Raw-pixel NCC</strong><br>
+                    <span class="figure-caption">G→B <span class="offset-badge">(49, 24)</span> · R→B <span class="offset-badge">(96, -250)</span></span>
+                  </figcaption>
+                </figure>
+              </div>
+              <div class="col-lg-6">
+                <figure class="result-card mb-0">
+                  <a class="image-link rounded-0" href="../assets/images/emir_edge_ncc.jpg" target="_blank" rel="noopener">
+                    <img src="../assets/images/emir_edge_ncc.jpg" class="comparison-frame" alt="Corrected Emir reconstruction produced by Sobel edge NCC">
+                  </a>
+                  <figcaption class="p-3">
+                    <strong>Sobel edge NCC</strong><br>
+                    <span class="figure-caption">G→B <span class="offset-badge">(49, 23)</span> · R→B <span class="offset-badge">(107, 40)</span></span>
+                  </figcaption>
+                </figure>
+              </div>
+            </div>
+
+            <p class="mb-0">
+              The edge-based result lines up the outline of his robe, face, and the doors much better. There are still colored borders around the outside of the plate because my final crop only removes pixels made invalid by the shifts; it does not try to automatically detect and remove the original glass-plate borders.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-top py-4">
+    <div class="container text-secondary small">
+      © 2026 Kenneth Poh Ren Kang
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+</body>
+</html>
