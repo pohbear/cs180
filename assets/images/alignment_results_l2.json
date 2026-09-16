@@ -1,0 +1,164 @@
+[
+  {
+    "image": "cathedral.jpg",
+    "green_dy": 5,
+    "green_dx": 2,
+    "red_dy": 12,
+    "red_dx": 3,
+    "seconds": 0.1,
+    "output": "output/pyramid_l2_cathedral.jpg"
+  },
+  {
+    "image": "monastery.jpg",
+    "green_dy": -3,
+    "green_dx": 2,
+    "red_dy": 3,
+    "red_dx": 2,
+    "seconds": 0.055,
+    "output": "output/pyramid_l2_monastery.jpg"
+  },
+  {
+    "image": "tobolsk.jpg",
+    "green_dy": 3,
+    "green_dx": 3,
+    "red_dy": 6,
+    "red_dx": 3,
+    "seconds": 0.059,
+    "output": "output/pyramid_l2_tobolsk.jpg"
+  },
+  {
+    "image": "boy.tif",
+    "green_dy": 45,
+    "green_dx": -13,
+    "red_dy": 103,
+    "red_dx": -11,
+    "seconds": 4.047,
+    "output": "output/pyramid_l2_boy.jpg"
+  },
+  {
+    "image": "camel.tif",
+    "green_dy": 20,
+    "green_dx": 15,
+    "red_dy": 81,
+    "red_dx": 38,
+    "seconds": 3.674,
+    "output": "output/pyramid_l2_camel.jpg"
+  },
+  {
+    "image": "carving.tif",
+    "green_dy": 51,
+    "green_dx": 0,
+    "red_dy": 125,
+    "red_dx": -13,
+    "seconds": 3.789,
+    "output": "output/pyramid_l2_carving.jpg"
+  },
+  {
+    "image": "church.tif",
+    "green_dy": 25,
+    "green_dx": 4,
+    "red_dy": 59,
+    "red_dx": -4,
+    "seconds": 3.63,
+    "output": "output/pyramid_l2_church.jpg"
+  },
+  {
+    "image": "emir.tif",
+    "green_dy": 49,
+    "green_dx": 24,
+    "red_dy": 101,
+    "red_dx": 58,
+    "seconds": 3.747,
+    "output": "output/pyramid_l2_emir.jpg"
+  },
+  {
+    "image": "group.tif",
+    "green_dy": 33,
+    "green_dx": 7,
+    "red_dy": 113,
+    "red_dx": 15,
+    "seconds": 3.762,
+    "output": "output/pyramid_l2_group.jpg"
+  },
+  {
+    "image": "harvesters.tif",
+    "green_dy": 59,
+    "green_dx": 16,
+    "red_dy": 124,
+    "red_dx": 13,
+    "seconds": 3.648,
+    "output": "output/pyramid_l2_harvesters.jpg"
+  },
+  {
+    "image": "icon.tif",
+    "green_dy": 41,
+    "green_dx": 17,
+    "red_dy": 90,
+    "red_dx": 23,
+    "seconds": 3.763,
+    "output": "output/pyramid_l2_icon.jpg"
+  },
+  {
+    "image": "ilemselga.tif",
+    "green_dy": 40,
+    "green_dx": 7,
+    "red_dy": 130,
+    "red_dx": 11,
+    "seconds": 3.867,
+    "output": "output/pyramid_l2_ilemselga.jpg"
+  },
+  {
+    "image": "melons.tif",
+    "green_dy": 82,
+    "green_dx": 11,
+    "red_dy": 178,
+    "red_dx": 13,
+    "seconds": 3.914,
+    "output": "output/pyramid_l2_melons.jpg"
+  },
+  {
+    "image": "religous_painting.tif",
+    "green_dy": 28,
+    "green_dx": 3,
+    "red_dy": 68,
+    "red_dx": 7,
+    "seconds": 3.939,
+    "output": "output/pyramid_l2_religous_painting.jpg"
+  },
+  {
+    "image": "self_portrait.tif",
+    "green_dy": 79,
+    "green_dx": 29,
+    "red_dy": 176,
+    "red_dx": 37,
+    "seconds": 3.846,
+    "output": "output/pyramid_l2_self_portrait.jpg"
+  },
+  {
+    "image": "siren.tif",
+    "green_dy": 49,
+    "green_dx": -6,
+    "red_dy": 96,
+    "red_dx": -25,
+    "seconds": 3.86,
+    "output": "output/pyramid_l2_siren.jpg"
+  },
+  {
+    "image": "three_generations.tif",
+    "green_dy": 53,
+    "green_dx": 14,
+    "red_dy": 112,
+    "red_dx": 11,
+    "seconds": 3.737,
+    "output": "output/pyramid_l2_three_generations.jpg"
+  },
+  {
+    "image": "wharf.tif",
+    "green_dy": 15,
+    "green_dx": -7,
+    "red_dy": 83,
+    "red_dx": -16,
+    "seconds": 3.829,
+    "output": "output/pyramid_l2_wharf.jpg"
+  }
+]
