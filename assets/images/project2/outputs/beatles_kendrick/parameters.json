@@ -1,0 +1,8 @@
+{
+  "high_source": "kendrick.jpg",
+  "low_source": "beatles.jpg",
+  "sigma_high": 1.5,
+  "sigma_low": 3,
+  "crop": null,
+  "boundary": "symm"
+}

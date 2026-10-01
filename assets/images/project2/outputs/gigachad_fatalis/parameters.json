@@ -1,0 +1,8 @@
+{
+  "high_source": "white_fatalis.jpg",
+  "low_source": "gigachad.jpg",
+  "sigma_high": 1,
+  "sigma_low": 3,
+  "crop": null,
+  "boundary": "symm"
+}

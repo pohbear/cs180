@@ -1,0 +1,8 @@
+{
+  "high_source": "nutmeg.jpg",
+  "low_source": "DerekPicture.jpg",
+  "sigma_high": 3.0,
+  "sigma_low": 5.0,
+  "crop": null,
+  "boundary": "symm"
+}
