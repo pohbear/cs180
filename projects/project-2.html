@@ -131,7 +131,7 @@ derivative_y = conv_2_loop(self_image, Dy)</code>
 <a class="image-link" href="../assets/images/project2/out/1_1_comparison.png" target="_blank" rel="noopener">
 <img class="comparison-frame " src="../assets/images/project2/display/out/1_1_comparison.png.webp" alt="My grayscale portrait, box-filtered portrait, x derivative, and y derivative" loading="lazy">
 </a>
-<figcaption class="figure-caption mt-2">Input: <code>img/me_1.jpg</code>. Left to right: original, 9 × 9 box blur, D<sub>x</sub>, and D<sub>y</sub>. The derivative images contain signed values, so gray represents zero.</figcaption>
+<figcaption class="figure-caption mt-2">Left to right: original, 9 × 9 box blur, D<sub>x</sub>, and D<sub>y</sub>. The derivative images contain signed values, so gray represents zero.</figcaption>
 </figure>
 <h3 class="h4 mt-5">Comparing with SciPy</h3>
 <p>I checked both implementations against <code>scipy.signal.convolve2d</code> using the same zero-filled boundaries. An asymmetric filter is useful here because forgetting to flip it would give a different answer.</p>
@@ -227,7 +227,7 @@ edges = magnitude &gt; threshold</code>
 <a class="image-link" href="../assets/images/project2/out/1_2_chosen_threshold.png" target="_blank" rel="noopener">
 <img class="comparison-frame " src="../assets/images/project2/display/out/1_2_chosen_threshold.png.webp" alt="Cameraman input, x derivative, y derivative, gradient magnitude, and edges at threshold 0.23" loading="lazy">
 </a>
-<figcaption class="figure-caption mt-2">Input: <code>img/cameraman.png</code>. Left to right: original, D<sub>x</sub>, D<sub>y</sub>, gradient magnitude, and binary edges at T = 0.23.</figcaption>
+<figcaption class="figure-caption mt-2">Left to right: original, D<sub>x</sub>, D<sub>y</sub>, gradient magnitude, and binary edges at T = 0.23.</figcaption>
 </figure>
 </div>
 </div>
@@ -305,44 +305,6 @@ dog_edges = dog_magnitude &gt; smooth_threshold</code>
 <p>The maximum interior differences between the two-step derivatives and the DoG derivatives were <strong>9.992 × 10<sup>−16</sup>
 </strong> in x and <strong>1.147 × 10<sup>−15</sup>
 </strong> in y. They agree to floating-point precision. Cropping after each <code>same</code> convolution can change boundary pixels, so I also checked full convolution followed by a single crop; that comparison passed across the entire image.</p>
-<details class="code-block">
-<summary>Checking agreement and handling the boundary</summary>
-<pre>
-<code>interior = np.s_[1:-1, 1:-1]
-
-error_x = np.max(np.abs(smooth_dx[interior] - dog_dx[interior]))
-error_y = np.max(np.abs(smooth_dy[interior] - dog_dy[interior]))
-
-print(&quot;Interior maximum difference, x:&quot;, error_x)
-print(&quot;Interior maximum difference, y:&quot;, error_y)
-
-np.testing.assert_allclose(smooth_dx[interior], dog_dx[interior], atol=1e-12)
-np.testing.assert_allclose(smooth_dy[interior], dog_dy[interior], atol=1e-12)
-
-blurred_full = convolve2d(cameraman, G, mode=&quot;full&quot;)
-
-sequential_full_x = convolve2d(blurred_full, Dx, mode=&quot;full&quot;)
-sequential_full_y = convolve2d(blurred_full, Dy, mode=&quot;full&quot;)
-
-def crop_to_original(full_result, combined_kernel):
-    start_y = (combined_kernel.shape[0] - 1) // 2
-    start_x = (combined_kernel.shape[1] - 1) // 2
-    height, width = cameraman.shape
-
-    return full_result[
-        start_y:start_y + height,
-        start_x:start_x + width,
-    ]
-
-sequential_x = crop_to_original(sequential_full_x, DoG_x)
-sequential_y = crop_to_original(sequential_full_y, DoG_y)
-
-np.testing.assert_allclose(sequential_x, dog_dx, atol=1e-12)
-np.testing.assert_allclose(sequential_y, dog_dy, atol=1e-12)
-
-print(&quot;Full-preserving sequential filtering matches DoG filtering.&quot;)</code>
-</pre>
-</details>
 <figure class="my-4">
 <a class="image-link" href="../assets/images/project2/out/cameraman_dog_magnitude.png" target="_blank" rel="noopener">
 <img class="comparison-frame " src="../assets/images/project2/display/out/cameraman_dog_magnitude.png.webp" alt="DoG gradient magnitude" loading="lazy">
@@ -368,45 +330,11 @@ print(&quot;Full-preserving sequential filtering matches DoG filtering.&quot;)</
 <p>A Gaussian blur keeps the low frequencies. Subtracting it from the original gives the high-frequency details. I add a scaled version of those details back to make the edges stronger.</p>
 <div class="formula">details = image − G * image<br>sharpened = image + α × details<br>unsharp kernel = (1 + α)δ − αG</div>
 <p>The last expression combines sharpening into one convolution. The impulse δ keeps the original image, while the Gaussian subtracts a portion of the low frequencies. I filter each RGB channel separately, using symmetric boundaries here to avoid a dark zero-padded border.</p>
-<details class="code-block">
-<summary>Gaussian filter and single-convolution unsharp mask</summary>
-<pre>
-<code>def gaussian_kernel(sigma):
-    if sigma &lt;= 0:
-        raise ValueError(&quot;use positive sigma&quot;)
-
-    radius = int(np.ceil(3 * sigma))
-    size = 2 * radius + 1
-
-    g = cv2.getGaussianKernel(size, sigma)
-    return g @ g.T
-
-def filter_image(image, kernel):
-    if image.ndim == 2:
-        return convolve2d(image, kernel, mode=&quot;same&quot;, boundary=&quot;symm&quot;)
-
-    return np.stack([convolve2d(image[..., channel], kernel, mode=&quot;same&quot;, boundary=&quot;symm&quot;) for channel in range(image.shape[-1])], axis=-1)
-
-def unsharp_mask(image, sigma=1.5, alpha=1.0):
-    G = gaussian_kernel(sigma)
-    identity_kernel = np.zeros_like(G)
-    identity_kernel[G.shape[0] // 2, G.shape[1] // 2] = 1.0
-
-    sharpening_kernel = (1 + alpha) * identity_kernel - alpha * G
-
-    blurred = filter_image(image, G)
-    details = image - blurred
-
-    sharpened = filter_image(image, sharpening_kernel)
-
-    return blurred, details, sharpened, sharpening_kernel</code>
-</pre>
-</details>
 <figure class="my-4">
 <a class="image-link" href="../assets/images/project2/out/taj_sharpening_process.png" target="_blank" rel="noopener">
 <img class="comparison-frame " src="../assets/images/project2/display/out/taj_sharpening_process.png.webp" alt="Original Taj Mahal, blurred image, signed detail image, and sharpened image" loading="lazy">
 </a>
-<figcaption class="figure-caption mt-2">Input: <code>img/taj.jpg</code>. σ = 1.5, α = 1.0. High-frequency values are mapped around middle gray for display; the computation uses the raw signed values.</figcaption>
+<figcaption class="figure-caption mt-2">σ = 1.5, α = 1.0. High-frequency values are mapped around middle gray for display; the computation uses the raw signed values.</figcaption>
 </figure>
 <figure class="my-4">
 <a class="image-link" href="../assets/images/project2/out/taj_alpha_comparison.png" target="_blank" rel="noopener">
@@ -426,7 +354,7 @@ def unsharp_mask(image, sigma=1.5, alpha=1.0):
 <a class="image-link" href="../assets/images/project2/out/mural_blur_then_resharpen.png" target="_blank" rel="noopener">
 <img class="comparison-frame " src="../assets/images/project2/display/out/mural_blur_then_resharpen.png.webp" alt="Original mural photograph, deliberately blurred version, and resharpened version" loading="lazy">
 </a>
-<figcaption class="figure-caption mt-2">Input: <code>img/mural.jpg</code>. First blur: σ = 2.0. Unsharp mask applied to that blurred image: σ = 1.5, α = 1.5.</figcaption>
+<figcaption class="figure-caption mt-2">First blur: σ = 2.0. Unsharp mask applied to that blurred image: σ = 1.5, α = 1.5.</figcaption>
 </figure>
 <p>The resharpened image has stronger local contrast than the blurred image, but it does not recover all the detail in the original. Sharpening amplifies what is left after the blur; it cannot reconstruct information that was removed.</p>
 </div>
@@ -442,26 +370,6 @@ def unsharp_mask(image, sigma=1.5, alpha=1.0):
 <p>A hybrid combines the high frequencies of one image with the low frequencies of another. Up close, the small details are easier to see. From farther away, or at a smaller display size, the smoother image becomes more noticeable.</p>
 <p>I align the images before filtering so important features, such as the eyes, overlap. Then I experiment with two separate Gaussian sigmas: one controls the blur subtracted to get the high frequencies, and the other controls the low-pass image.</p>
 <div class="formula">high = aligned_high − G(σ_high) * aligned_high<br>low = G(σ_low) * aligned_low<br>hybrid = high + low</div>
-<details class="code-block">
-<summary>Hybrid construction and Fourier visualization</summary>
-<pre>
-<code>def hybrid_image(aligned_high, aligned_low, sigma_high, sigma_low):
-    # Apply filters to the aligned grayscale inputs, using symmetric boundaries.
-    high = aligned_high - convolve2d(
-        aligned_high, gaussian_kernel(sigma_high), mode=&quot;same&quot;, boundary=&quot;symm&quot;
-    )
-    low = convolve2d(
-        aligned_low, gaussian_kernel(sigma_low), mode=&quot;same&quot;, boundary=&quot;symm&quot;
-    )
-    return high + low, high, low
-
-
-def log_spectrum(gray_image):
-    # Use raw arrays, including signed high-pass values, before display clipping.
-    spectrum = np.fft.fftshift(np.fft.fft2(gray_image))
-    return np.log(np.abs(spectrum) + 1e-8)  # Avoid log(0).</code>
-</pre>
-</details>
 <h3 class="h4 mt-5">The saved parameters</h3>
 <p>These are the values stored with my exported results in <code>parameters.json</code>. For Derek/Nutmeg, I use Nutmeg for the high frequencies and Derek for the low frequencies.</p>
 <div class="table-responsive">
@@ -594,60 +502,17 @@ def log_spectrum(gray_image):
 <p>I use stacks rather than pyramids, so every level has the same dimensions. There is no downsampling. Level 0 is the original image; the remaining Gaussian levels blur the original with σ = 2, 4, 8, 16, and 32.</p>
 <p>The Laplacian bands are differences between neighboring Gaussian levels. I keep the last Gaussian image as the low-frequency residual, so summing all six Laplacian levels reconstructs the original.</p>
 <div class="formula">L[k] = G[k] − G[k + 1]<br>L[last] = G[last]<br>image = sum(L)</div>
-<details class="code-block">
-<summary>Building stacks without built-in pyramid functions</summary>
-<pre>
-<code>def gaussian_blur_stack(image, sigma):
-    radius = int(np.ceil(3 * sigma))
-    size = 2 * radius + 1
-
-    g = cv2.getGaussianKernel(size, sigma).ravel()
-
-    def blur_channel(channel):
-        # first blur horizontally, then vertically.
-        horizontal = convolve2d(channel, g[None, :], mode=&quot;same&quot;, boundary=&quot;symm&quot;)
-        return convolve2d(horizontal, g[:, None], mode=&quot;same&quot;, boundary=&quot;symm&quot;)
-
-    if image.ndim == 2:
-        return blur_channel(image)
-
-    return np.stack([blur_channel(image[..., c]) for c in range(image.shape[-1])],axis=-1)
-
-
-def gaussian_stack(image, levels=6, base_sigma=2.0):
-    # G[0] is original, subsequent levels blur by doubling sigmas
-    if levels &lt; 2 or base_sigma &lt;= 0:
-        raise ValueError(&quot;Use levels &gt;= 2 and base_sigma &gt; 0.&quot;)
-
-    image = np.asarray(image, dtype=np.float64)
-    stack = [image.copy()]
-
-    for level in range(1, levels):
-        sigma = base_sigma * 2**(level - 1)
-        stack.append(gaussian_blur_stack(image, sigma))
-
-    return np.stack(stack, axis=0)
-
-
-def laplacian_stack(G):
-    # neighboring gaussian differences plus the low-frequency residual
-    bands = G[:-1] - G[1:]
-
-    # preserve the final gaussian image so reconstruction is possible
-    return np.concatenate([bands, G[-1:]], axis=0)</code>
-</pre>
-</details>
 <figure class="my-4">
 <a class="image-link" href="../assets/images/project2/out/part2_3/apple_stacks.png" target="_blank" rel="noopener">
 <img class="comparison-frame " src="../assets/images/project2/display/out/part2_3/apple_stacks.png.webp" alt="Six Gaussian levels and six Laplacian levels for the apple" loading="lazy">
 </a>
-<figcaption class="figure-caption mt-2">Input: <code>img/apple.jpeg</code>. Top: Gaussian stack. Bottom: signed Laplacian bands and the final low-frequency residual.</figcaption>
+<figcaption class="figure-caption mt-2">Top: Gaussian stack. Bottom: signed Laplacian bands and the final low-frequency residual.</figcaption>
 </figure>
 <figure class="my-4">
 <a class="image-link" href="../assets/images/project2/out/part2_3/orange_stacks.png" target="_blank" rel="noopener">
 <img class="comparison-frame " src="../assets/images/project2/display/out/part2_3/orange_stacks.png.webp" alt="Six Gaussian levels and six Laplacian levels for the orange" loading="lazy">
 </a>
-<figcaption class="figure-caption mt-2">Input: <code>img/orange.jpeg</code>. Both input images are 300 × 300 RGB.</figcaption>
+<figcaption class="figure-caption mt-2">Both input images are 300 × 300 RGB.</figcaption>
 </figure>
 <p>The early Laplacian bands contain the fine details, while later bands contain broader changes. I map signed bands around middle gray only for visualization. Each displayed band has its own scale, so these pictures do not directly compare the strength of different levels.</p>
 <h3 class="h4 mt-5">Recreating Figure 3.42 (a–l)</h3>
@@ -677,49 +542,6 @@ def laplacian_stack(G):
 <p>A direct cut applies the same mask at every frequency, which can leave an obvious seam. Instead, I combine each pair of Laplacian bands using the corresponding blurred mask. The finer bands keep a more localized transition, while the low frequencies blend over a wider area.</p>
 <div class="formula">blended[k] = G_mask[k] × L_A[k] + (1 − G_mask[k]) × L_B[k]<br>result = sum(blended)</div>
 <p>The inputs stay in color. Only the mask is grayscale: white selects A, black selects B, and gray gives a weighted mixture. A, B, and the mask must have matching spatial dimensions after alignment.</p>
-<details class="code-block">
-<summary>Multiresolution blend function</summary>
-<pre>
-<code>def blend(A, B, mask, levels=6, base_sigma=2.0):
-    # mask must be 2d array in [0, 1]
-    # white select A, black select B
-    A = np.asarray(A, dtype=np.float64)
-    B = np.asarray(B, dtype=np.float64)
-    mask = np.asarray(mask, dtype=np.float64)
-
-    if A.shape != B.shape or A.ndim != 3 or B.ndim != 3:
-        raise ValueError(&quot;A and B must be equal-sized rgb images&quot;)
-    if mask.shape != A.shape[:2]:
-        raise ValueError(&quot;Mask must match image height and width&quot;)
-    if not np.isfinite(mask).all() or np.any((mask &lt; 0 ) | (mask &gt; 1)):
-        raise ValueError(&quot;mask values must be finite and within [0, 1]&quot;)
-
-    GA = gaussian_stack(A, levels, base_sigma)
-    GB = gaussian_stack(B, levels, base_sigma)
-    LA = laplacian_stack(GA)
-    LB = laplacian_stack(GB)
-
-    GM = gaussian_stack(mask, levels, base_sigma)
-    weights = GM[..., None]
-
-    contribution_A = weights * LA
-    contribution_B = (1 - weights) * LB
-    blended_stack = contribution_A + contribution_B
-    
-    result = blended_stack.sum(axis=0)
-
-    intermediates = {
-        &quot;mask_stack&quot;: GM,
-        &quot;laplacian_A&quot;: LA,
-        &quot;laplacian_B&quot;: LB,
-        &quot;contribution_A&quot;: contribution_A,
-        &quot;contribution_B&quot;: contribution_B,
-        &quot;blended_stack&quot;: blended_stack,
-    }
-
-    return result, intermediates</code>
-</pre>
-</details>
 <p>I checked the endpoints too: an all-white mask reconstructs A, and an all-black mask reconstructs B. Both assertions passed in my notebook.</p>
 <h3 class="h4 mt-5">Jerma985 + Wall Titan</h3>
 <p>I use an irregular face-shaped mask to put Jerma into the Wall Titan image. Compared with the direct cut, the stack blend makes the boundary less abrupt, although differences in lighting and facial texture still affect how convincing it looks.</p>
@@ -727,13 +549,13 @@ def laplacian_stack(G):
 <a class="image-link" href="../assets/images/project2/outputs/jerma_titan/jerma_titan_blend_comparison.png" target="_blank" rel="noopener">
 <img class="comparison-frame " src="../assets/images/project2/display/outputs/jerma_titan/jerma_titan_blend_comparison.png.webp" alt="Jerma input, Wall Titan input, face mask, direct cut, and multiresolution blend" loading="lazy">
 </a>
-<figcaption class="figure-caption mt-2">Inputs: <code>img/jerma_aligned.png</code>, <code>img/titan_aligned.png</code>, and <code>img/jerma_titan_mask.jpg</code>. Six levels; base σ = 2.</figcaption>
+<figcaption class="figure-caption mt-2">Sources: Jerma985 (Twitch Streamer), Wall Titan from Attack On Titan. Six levels; base σ = 2.</figcaption>
 </figure>
 <figure class="my-4">
 <a class="image-link" href="../assets/images/project2/outputs/jerma_titan/jerma_titan_blend.png" target="_blank" rel="noopener">
 <img class="comparison-frame " src="../assets/images/project2/display/outputs/jerma_titan/jerma_titan_blend.png.webp" alt="Jerma985 + Wall Titan final multiresolution blend" loading="lazy">
 </a>
-<figcaption class="figure-caption mt-2">Final result with all six levels combined.</figcaption>
+<figcaption class="figure-caption mt-2">"On that day, the viewers received a grim reminder. They lived in fear of the streamers and were disgraced to live in these cages called Twitch chat."</figcaption>
 </figure>
 <h3 class="h4 mt-5">Golden Gate Bridge + Gore Magala</h3>
 <p>Another irregular mask keeps parts of the bridge scene while bringing in Gore Magala. The mask follows the region I want to retain rather than using a straight seam.</p>
@@ -741,39 +563,39 @@ def laplacian_stack(G):
 <a class="image-link" href="../assets/images/project2/outputs/gore_gate/gore_gate_blend_comparison.png" target="_blank" rel="noopener">
 <img class="comparison-frame " src="../assets/images/project2/display/outputs/gore_gate/gore_gate_blend_comparison.png.webp" alt="Golden Gate input, Gore Magala input, irregular mask, direct cut, and blend" loading="lazy">
 </a>
-<figcaption class="figure-caption mt-2">Inputs: <code>img/golden_gate.jpg</code>, <code>img/gore_magala.jpg</code>, and <code>img/gore_gate_mask.jpg</code>.</figcaption>
+<figcaption class="figure-caption mt-2">Sources: Golden Gate Bridge (photo taken by me), Gore Magala (Monster Hunter: Wilds)</figcaption>
 </figure>
 <figure class="my-4">
 <a class="image-link" href="../assets/images/project2/outputs/gore_gate/gore_gate_blend.png" target="_blank" rel="noopener">
 <img class="comparison-frame " src="../assets/images/project2/display/outputs/gore_gate/gore_gate_blend.png.webp" alt="Golden Gate Bridge + Gore Magala final multiresolution blend" loading="lazy">
 </a>
-<figcaption class="figure-caption mt-2">Final result with all six levels combined.</figcaption>
+<figcaption class="figure-caption mt-2">Oh no, there's a Gore Magala rampaging near the Golden Gate Bridge!</figcaption>
 </figure>
 <h3 class="h4 mt-5">Two lake images</h3>
 <figure class="my-4">
 <a class="image-link" href="../assets/images/project2/outputs/lakes/lake_blend_comparison.png" target="_blank" rel="noopener">
 <img class="comparison-frame " src="../assets/images/project2/display/outputs/lakes/lake_blend_comparison.png.webp" alt="Two lake photographs, horizontal mask, direct cut, and blend" loading="lazy">
 </a>
-<figcaption class="figure-caption mt-2">Inputs: <code>img/lake_1.jpg</code>, <code>img/lake_2.jpg</code>, and <code>img/lake_mask.jpg</code>. This example uses a horizontal seam.</figcaption>
+<figcaption class="figure-caption mt-2">Sources: Images of lakes in Golden Gate Park. This example uses a horizontal seam.</figcaption>
 </figure>
 <figure class="my-4">
 <a class="image-link" href="../assets/images/project2/outputs/lakes/lake_blend.png" target="_blank" rel="noopener">
 <img class="comparison-frame " src="../assets/images/project2/display/outputs/lakes/lake_blend.png.webp" alt="Two lake images final multiresolution blend" loading="lazy">
 </a>
-<figcaption class="figure-caption mt-2">Final result with all six levels combined.</figcaption>
+<figcaption class="figure-caption mt-2">Look at all these chickens!</figcaption>
 </figure>
 <h3 class="h4 mt-5">A picture of me + Lake of Rot</h3>
 <figure class="my-4">
 <a class="image-link" href="../assets/images/project2/outputs/rot/rot_blend_comparison.png" target="_blank" rel="noopener">
 <img class="comparison-frame " src="../assets/images/project2/display/outputs/rot/rot_blend_comparison.png.webp" alt="My photo, Lake of Rot input, silhouette mask, direct cut, and blend" loading="lazy">
 </a>
-<figcaption class="figure-caption mt-2">Inputs: <code>img/me_2.jpg</code>, <code>img/rot.jpg</code>, and <code>img/rot_mask.jpg</code>.</figcaption>
+<figcaption class="figure-caption mt-2">Sources: Me at Shark Fin Cove, Lake of Rot (Elden Ring).</figcaption>
 </figure>
 <figure class="my-4">
 <a class="image-link" href="../assets/images/project2/outputs/rot/rot_blend.png" target="_blank" rel="noopener">
 <img class="comparison-frame " src="../assets/images/project2/display/outputs/rot/rot_blend.png.webp" alt="My photo + Lake of Rot final multiresolution blend" loading="lazy">
 </a>
-<figcaption class="figure-caption mt-2">Final result with all six levels combined.</figcaption>
+<figcaption class="figure-caption mt-2">I knew I shouldn't have opened that chest...</figcaption>
 </figure>
 <h3 class="h4 mt-5">All levels, and the final reconstruction</h3>
 <p>For the Jerma/Titan example, each row shows the Gaussian mask, masked A band, masked B band, and combined band. The final row sums the raw bands to show the two total contributions and the final blend. I do not sum the gray visualization images.</p>
@@ -793,12 +615,9 @@ def laplacian_stack(G):
 <div class="col-lg-10">
 <p class="text-secondary fw-semibold mb-2">What I learned</p>
 <h2 class="display-6 fw-bold mb-4">The Mask Is Part of the Blend</h2>
-<!-- Draft reflection: review this paragraph so it reflects your own experience. -->
 <p>The biggest thing I learned is that a smooth blend is not just about using gray in a mask. The mask needs to change with the frequency level. A narrow transition can keep the details in place, while a wider transition helps the lighting and color meet more gradually.</p>
 <p>I also found that parameters depend on the image and how I view it. The edge threshold needs to change after smoothing, and a hybrid that looks good in a small grid may look different when I open it at full size. There is no single sigma that works for every image.</p>
-<p>
-<a class="btn btn-outline-dark" href="../assets/code/project2_completed.ipynb" download>Download my completed notebook</a>
-</p>
+<p>Finally, I realised how fun it is to blend images that mix reality and fantasy, especially when I can do something goofy with it.</p>
 </div>
 </div>
 </div>
