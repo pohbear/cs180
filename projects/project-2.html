@@ -49,7 +49,6 @@
 <p>My attempt at using filters to find edges, sharpen images, and put images together in ways that look a little strange :D</p>
 <p>The general idea is simple: different filters keep different parts of an image. I start with convolution and finite differences, then use low and high frequencies to make hybrid images and smoother blends.</p>
 <p class="text-secondary full-size-hint">Click any figure to open the full-size image. The comparisons include the input images as well as the outputs.</p>
-<p class="text-secondary">The results below use my saved project exports. Each section includes the inputs and outputs needed to follow the process.</p>
 </div>
 </div>
 </div>
@@ -131,7 +130,7 @@ derivative_y = conv_2_loop(self_image, Dy)</code>
 <a class="image-link" href="../assets/images/project2/out/1_1_comparison.png" target="_blank" rel="noopener">
 <img class="comparison-frame " src="../assets/images/project2/display/out/1_1_comparison.png.webp" alt="My grayscale portrait, box-filtered portrait, x derivative, and y derivative" loading="lazy">
 </a>
-<figcaption class="figure-caption mt-2">Left to right: original, 9 × 9 box blur, D<sub>x</sub>, and D<sub>y</sub>. The derivative images contain signed values, so gray represents zero.</figcaption>
+<figcaption class="figure-caption mt-2">The sun was a little too bright. For derivative images, gray = 0.</figcaption>
 </figure>
 <h3 class="h4 mt-5">Comparing with SciPy</h3>
 <p>I checked both implementations against <code>scipy.signal.convolve2d</code> using the same zero-filled boundaries. An asymmetric filter is useful here because forgetting to flip it would give a different answer.</p>
