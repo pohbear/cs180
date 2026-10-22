@@ -1,0 +1,1624 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS180 · Project 3 · Flow Models</title>
+<meta name="description" content="Kenneth Poh's CS180 Project 3: pretrained flow models, interactive visual anagrams and hybrids, and flow matching on MNIST.">
+<link rel="stylesheet" href="../assets/bootstrap.min.css">
+<link rel="stylesheet" href="../styles.css">
+<link rel="stylesheet" href="../assets/project3.css">
+</head>
+<body>
+<a class="skip-link" href="#overview">Skip to content</a>
+<nav class="navbar bg-body-tertiary border-bottom sticky-top">
+<div class="container">
+<a class="navbar-brand fw-semibold" href="../index.html">CS180</a>
+<a class="nav-link" href="../index.html#projects">Projects</a>
+</div>
+</nav>
+<main>
+<header class="bg-body-tertiary py-5">
+<div class="container py-4">
+<div class="row">
+<div class="col-lg-9">
+<a class="link-secondary text-decoration-none" href="../index.html#projects">← Back to projects</a>
+<p class="text-uppercase text-secondary fw-semibold mt-4 mb-2">CS180 Project 3</p>
+<h1 class="display-4 fw-bold">Fun with Flow Models!</h1>
+<p class="lead text-secondary project-summary mb-4">My attempt at turning noise into images, making pictures with two perspectives, and training a flow model of my own.</p>
+<div class="project-jump-links d-flex flex-wrap gap-2" aria-label="Jump to a project section">
+<a class="btn btn-outline-secondary" href="#overview">Overview</a>
+<a class="btn btn-outline-secondary" href="#part-a">Part A</a>
+<a class="btn btn-outline-secondary" href="#a-3-1">Image editing</a>
+<a class="btn btn-outline-secondary" href="#a-3-3">Anagrams</a>
+<a class="btn btn-outline-secondary" href="#a-3-4">Hybrids</a>
+<a class="btn btn-outline-secondary" href="#part-b">Part B</a>
+<a class="btn btn-outline-secondary" href="#b-2-6">Class sampling</a>
+<a class="btn btn-outline-secondary" href="#reflection">Reflection</a>
+</div>
+</div>
+</div>
+</div>
+</header>
+<section id="overview" class="project-section section-padding">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Overview</p>
+<h2 class="display-6 fw-bold mb-4">From Noise to Images</h2>
+<p>My attempt at using flow models to clean up images, generate new ones, and make a few optical illusions. Then, instead of relying on a pretrained model, I train my own model to generate MNIST digits.</p>
+<p>The general idea is simple: start with noise and learn how to move it toward an image. Part A explores what a pretrained model can do. Part B builds a smaller version from scratch, starting with a one-step denoiser and adding time and class conditioning.</p>
+<div class="method-card">
+<strong>Reading the results</strong>
+<p>Click comparison figures to open the original exports. Hover over the anagrams to rotate them, or the hybrids to shrink them. Those examples also work with a click, tap, or the keyboard.</p>
+<p class="mb-0">The highlighted writing prompts mark observations that I still need to add in my own words before submitting.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section id="part-a" class="project-section section-padding bg-body-tertiary">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part A</p>
+<h2 class="display-6 fw-bold mb-4">Exploring a Pretrained Flow Model</h2>
+<p>For this part, I use PixNerd-XXL-P16-T2I at 512 × 512 resolution. My base seed is 723, and the Euler step size is 0.02. The basic denoising tests use the prompt <code>a high quality photo</code>. Guided sampling and the creative experiments use CFG weight w = 7.</p>
+<div class="formula">xₜ = (1 − t)ε + t x₁ &nbsp; · &nbsp; t = 0: noise &nbsp; · &nbsp; t = 1: clean image</div>
+<p>I use the same landscape image and sampled noise throughout the reconstruction tests. This keeps the input consistent when I compare methods.</p>
+<figure class="result-figure original-input">
+<a class="image-link" href="../assets/images/project3/part_a/velocity_original.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/velocity_original.webp" width="512" height="512" alt="Original landscape image used throughout Part A denoising" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">My reconstruction input, loaded from <code>sunrise.jpg</code>.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="a-1-1" class="project-section section-padding">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part A · 1.1</p>
+<h2 class="display-6 fw-bold mb-4">Constructing Noisy Training Inputs</h2>
+<p>I interpolate between the image and Gaussian noise. This scales both terms; it is different from adding noise to an unchanged image. Smaller t leaves less of the original image, while larger t keeps more of it.</p>
+<details class="code-block">
+<summary>Interpolation</summary>
+<pre>
+<code>def interpolate(image, noise, t):
+    return (1 - t) * noise + t * image</code>
+</pre>
+</details>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/training_inputs.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/training_inputs.webp" width="1760" height="440" alt="Original and noisy inputs at t = 0.25, 0.50, and 0.75. The same Gaussian noise tensor is reused." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Original and noisy inputs at t = 0.25, 0.50, and 0.75. The same Gaussian noise tensor is reused.</figcaption>
+</figure>
+<p>I also check the endpoints: t = 0 returns the noise exactly, and t = 1 returns the original image.</p>
+</div>
+</div>
+</div>
+</section>
+<section id="a-1-2" class="project-section section-padding bg-body-tertiary">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part A · 1.2</p>
+<h2 class="display-6 fw-bold mb-4">Classical Denoising</h2>
+<p>As a baseline, I divide each noisy input by t to restore the image amplitude, then apply a Gaussian blur. Dividing by t also amplifies the noise, so the lower-t inputs are harder to recover.</p>
+<div class="formula">xₜ / t = x₁ + ((1 − t) / t)ε</div>
+<p>I test σ = 1, 2, 4, 8, and 16 and select the smallest reconstruction MSE against the known original for each input. This is an evaluation choice with access to the original, rather than a blind denoising rule.</p>
+<details class="code-block">
+<summary>Selecting the Gaussian blur strength</summary>
+<pre>
+<code>if GROUP in (&quot;all&quot;,&quot;core&quot;):
+    blurred = {}
+    for t,x in noisy.items():
+        candidates = {s: gaussian_blur(x/t, [int(6*s+1)]*2, [s,s]) for s in [1.,2.,4.,8.,16.]}
+        sigma = min(candidates, key=lambda s: ((candidates[s]-image)**2).mean().item())
+        blurred[t] = candidates[sigma]
+        panel(f&quot;blur_{t}&quot;, {&quot;noisy&quot;:x,f&quot;blur sigma={sigma}&quot;:blurred[t]}, columns=2)</code>
+</pre>
+</details>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/blur_0.25.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/blur_0.25.webp" width="880" height="440" alt="t = 0.25; chosen Gaussian σ = 16. Left: noisy input. Right: amplitude-corrected, blurred output." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">t = 0.25; chosen Gaussian σ = 16. Left: noisy input. Right: amplitude-corrected, blurred output.</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/blur_0.5.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/blur_0.5.webp" width="880" height="440" alt="t = 0.5; chosen Gaussian σ = 4. Left: noisy input. Right: amplitude-corrected, blurred output." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">t = 0.5; chosen Gaussian σ = 4. Left: noisy input. Right: amplitude-corrected, blurred output.</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/blur_0.75.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/blur_0.75.webp" width="880" height="440" alt="t = 0.75; chosen Gaussian σ = 1. Left: noisy input. Right: amplitude-corrected, blurred output." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">t = 0.75; chosen Gaussian σ = 1. Left: noisy input. Right: amplitude-corrected, blurred output.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="a-1-3" class="project-section section-padding">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part A · 1.3</p>
+<h2 class="display-6 fw-bold mb-4">One-Step Denoising</h2>
+<p>The flow model predicts velocity, rather than the clean image directly. I multiply that prediction by the remaining time and add it to the current noisy state.</p>
+<div class="formula">x̂₁ = xₜ + (1 − t)vθ(xₜ, t, c)</div>
+<details class="code-block">
+<summary>One model prediction</summary>
+<pre>
+<code>def one_step_denoise(x, t, condition, predict_velocity):
+    v = predict_velocity(x, t, condition)
+    return x + (1 - t) * v</code>
+</pre>
+</details>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/one_step_0.25.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/one_step_0.25.webp" width="1320" height="440" alt="t = 0.25. Original, saved noisy input, and one-step estimate." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">t = 0.25. Original, saved noisy input, and one-step estimate.</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/one_step_0.5.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/one_step_0.5.webp" width="1320" height="440" alt="t = 0.5. Original, saved noisy input, and one-step estimate." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">t = 0.5. Original, saved noisy input, and one-step estimate.</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/one_step_0.75.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/one_step_0.75.webp" width="1320" height="440" alt="t = 0.75. Original, saved noisy input, and one-step estimate." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">t = 0.75. Original, saved noisy input, and one-step estimate.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="a-1-4" class="project-section section-padding bg-body-tertiary">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part A · 1.4</p>
+<h2 class="display-6 fw-bold mb-4">Visualizing Velocity</h2>
+<p>Because I know both the original image and the sampled noise, I can compute the ground-truth velocity. I compare the actual update needed to reach the original with the model’s predicted update.</p>
+<div class="formula">v_gt = x₁ − ε<br>predicted update = (1 − t)vθ<br>target update = x₁ − xₜ<br>error = sqrt(mean over RGB of (predicted update − target update)²)</div>
+<details class="code-block">
+<summary>Predicted updates and pixelwise RMS error</summary>
+<pre>
+<code>@torch.inference_mode()
+def velocity_diagnostics(x_t, t, clean_image, epsilon, condition, predict_velocity):
+    &quot;&quot;&quot;Return predicted_update, ground_truth_update, and error_map.
+
+    Both updates have shape (B, 3, H, W).
+    The error map has shape (B, H, W): average only over RGB, keeping each pixel.
+    Return raw values before display scaling or clipping.
+    &quot;&quot;&quot;
+    # STUDENT IMPLEMENTATION: use the equations in Section 1.4.
+    v_pred = predict_velocity(x_t, t, condition)
+    v_gt = clean_image - epsilon
+
+    predicted_update = (1 - t) * v_pred
+    ground_truth_update = (1 - t) * v_gt
+
+    diff = predicted_update - ground_truth_update
+    error_map = diff.square().mean(dim=1).sqrt()
+
+    return predicted_update, ground_truth_update, error_map</code>
+</pre>
+</details>
+<p>The updates use one shared signed display scale, with zero at middle gray. The heatmaps use one shared linear scale across all three times. These display mappings do not change the raw errors.</p>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/velocity_0.25.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/velocity_0.25.webp" width="1760" height="440" alt="t = 0.25. Noisy input, predicted update, target update, and RGB RMS error. The original is shown at the start of Part A." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">t = 0.25. Noisy input, predicted update, target update, and RGB RMS error. The original is shown at the start of Part A.</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/velocity_0.50.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/velocity_0.50.webp" width="1760" height="440" alt="t = 0.50. Noisy input, predicted update, target update, and RGB RMS error. The original is shown at the start of Part A." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">t = 0.50. Noisy input, predicted update, target update, and RGB RMS error. The original is shown at the start of Part A.</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/velocity_0.75.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/velocity_0.75.webp" width="1760" height="440" alt="t = 0.75. Noisy input, predicted update, target update, and RGB RMS error. The original is shown at the start of Part A." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">t = 0.75. Noisy input, predicted update, target update, and RGB RMS error. The original is shown at the start of Part A.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="a-1-5" class="project-section section-padding">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part A · 1.5</p>
+<h2 class="display-6 fw-bold mb-4">Euler Sampling</h2>
+<p>Instead of extrapolating all the way to the endpoint in one step, I repeatedly take a small step and ask the model for a new velocity. Starting at t = 0.50 with h = 0.02 takes 25 updates to reach t = 1.</p>
+<div class="formula">x_next = xₜ + Δt × vθ(xₜ, t, c)</div>
+<details class="code-block">
+<summary>Euler integration, saved states, and the final step</summary>
+<pre>
+<code>@torch.inference_mode()
+def euler_sample(x_start, t_start, step_size, velocity):
+    t_start = float(t_start)
+    step_size = float(step_size)
+
+    if not math.isfinite(t_start) or not 0 &lt;= t_start &lt;= 1:
+      raise ValueError(&quot;t start must be in [0, 1]&quot;)
+
+    if not math.isfinite(step_size) or step_size &lt;= 0:
+      raise ValueError(&quot;step size must be positive and finite&quot;)
+
+    x = x_start.detach().float().clone()
+    states = [(t_start, x.detach().cpu().clone())]
+
+    if t_start == 1:
+      return x, states
+
+    # avoid extra step from floating point roundoff
+    n_steps = max(1, math.ceil((1 - t_start) / step_size - 1e-12))
+
+    t = t_start
+
+    for i in range(n_steps):
+      next_t = min(1.0, t_start + (i + 1) * step_size)
+
+      if i == n_steps - 1:
+        next_t = 1.0
+
+      dt = next_t - t
+
+      v = velocity(x, t)
+      x = x + dt * v
+      t = next_t
+
+      if (i + 1) % 5 == 0 or i == n_steps - 1:
+        states.append((t, x.detach().cpu().clone()))
+
+    return x, states</code>
+</pre>
+</details>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/trajectory.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/trajectory.webp" width="1320" height="880" alt="Initial state and every fifth update: t = 0.50, 0.60, 0.70, 0.80, 0.90, and 1.00." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Initial state and every fifth update: t = 0.50, 0.60, 0.70, 0.80, 0.90, and 1.00.</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/comparison.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/comparison.webp" width="1760" height="440" alt="The same t = 0.50 input: original, Gaussian blur, one-step denoising, and Euler denoising." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">The same t = 0.50 input: original, Gaussian blur, one-step denoising, and Euler denoising.</figcaption>
+</figure>
+<div class="table-responsive">
+<table class="table">
+<caption>Recorded reconstruction MSE on the raw image tensors in [−1, 1], before display clipping; lower is better.</caption>
+<thead>
+<tr>
+<th scope="col">Method</th>
+<th scope="col">MSE</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Gaussian blur</td>
+<td>0.0311704</td>
+</tr>
+<tr>
+<td>One-step denoising</td>
+<td>0.0139942</td>
+</tr>
+<tr>
+<td>Euler denoising</td>
+<td>0.0164260</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>On this image, one-step denoising has the lowest MSE. More sampling steps do not guarantee a closer pixelwise reconstruction: the model follows its learned velocity field, rather than knowing the original image. The notebook also passes the constant-velocity tests for 50 steps, 25 steps, and a shortened final step.</p>
+</div>
+</div>
+</div>
+</section>
+<section id="a-1-6" class="project-section section-padding bg-body-tertiary">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part A · 1.6</p>
+<h2 class="display-6 fw-bold mb-4">Generating Images from Noise</h2>
+<p>I start from independent Gaussian noise at t = 0 and integrate for 50 steps. The prompt stays fixed at <code>a high quality photo</code>; only the initial noise seed changes.</p>
+<div class="sample-grid">
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/conditional_0.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/conditional_0.webp" width="512" height="512" alt="Seed 723 · ordinary conditional sampling" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Seed 723 · ordinary conditional sampling</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/conditional_1.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/conditional_1.webp" width="512" height="512" alt="Seed 724 · ordinary conditional sampling" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Seed 724 · ordinary conditional sampling</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/conditional_2.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/conditional_2.webp" width="512" height="512" alt="Seed 725 · ordinary conditional sampling" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Seed 725 · ordinary conditional sampling</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/conditional_3.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/conditional_3.webp" width="512" height="512" alt="Seed 726 · ordinary conditional sampling" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Seed 726 · ordinary conditional sampling</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/conditional_4.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/conditional_4.webp" width="512" height="512" alt="Seed 727 · ordinary conditional sampling" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Seed 727 · ordinary conditional sampling</figcaption>
+</figure>
+</div>
+<!-- REFLECTION A1.6: replace this aside with your own paragraph before submission. -->
+<aside class="author-note">
+<strong>Your observation · What does the generic prompt generate?</strong>
+<p>Compare the five seeds. Which subjects recur, and which results look incomplete or unusual? Write two or three sentences describing the range you actually see; five samples are not enough to establish a general model bias.</p>
+</aside>
+</div>
+</div>
+</div>
+</section>
+<section id="a-2-1" class="project-section section-padding">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part A · 2.1</p>
+<h2 class="display-6 fw-bold mb-4">Classifier-Free Guidance</h2>
+<p>I evaluate the same image and time twice: once with the text prompt and once with the empty prompt. CFG pushes the prediction farther in the conditional direction. In this notebook’s convention, w = 0 is ordinary conditional sampling.</p>
+<div class="formula">v_cfg = v_c + w(v_c − v_u) &nbsp; · &nbsp; w = 7</div>
+<details class="code-block">
+<summary>Guided velocity</summary>
+<pre>
+<code>def cfg_velocity(x, t, condition, w, predict_velocity, null_condition=&#x27;&#x27;):
+    v_c = predict_velocity(x, t, condition)
+
+    if w == 0:
+      return v_c
+
+    v_u = predict_velocity(x, t, null_condition)
+
+    return v_c + w * (v_c - v_u)</code>
+</pre>
+</details>
+<div class="sample-grid">
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/cfg_0.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/cfg_0.webp" width="512" height="512" alt="Seed 723 · CFG w = 7" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Seed 723 · CFG w = 7</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/cfg_1.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/cfg_1.webp" width="512" height="512" alt="Seed 724 · CFG w = 7" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Seed 724 · CFG w = 7</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/cfg_2.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/cfg_2.webp" width="512" height="512" alt="Seed 725 · CFG w = 7" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Seed 725 · CFG w = 7</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/cfg_3.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/cfg_3.webp" width="512" height="512" alt="Seed 726 · CFG w = 7" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Seed 726 · CFG w = 7</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/cfg_4.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/cfg_4.webp" width="512" height="512" alt="Seed 727 · CFG w = 7" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Seed 727 · CFG w = 7</figcaption>
+</figure>
+</div>
+<p>These use the same five initial noises as Section 1.6, making it possible to compare each seed before and after guidance. The w = 0 equivalence assertion also passes in the notebook.</p>
+<!-- REFLECTION A2.1: replace this aside with your own paragraph before submission. -->
+<aside class="author-note">
+<strong>Your observation · How did guidance change the results?</strong>
+<p>Compare the same seed in Sections 1.6 and 2.1. Pick one example where quality changed, then discuss whether the five guided outputs seem more or less varied. Support your comparison with a visible detail.</p>
+</aside>
+</div>
+</div>
+</div>
+</section>
+<section id="a-3-1" class="project-section section-padding bg-body-tertiary">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part A · 3.1</p>
+<h2 class="display-6 fw-bold mb-4">Image-to-Image Editing</h2>
+<p>I interpolate an input image with noise at a chosen starting time, then denoise from there using the generic photo prompt and CFG. Smaller starting times retain less of the input and give the model more room to change it.</p>
+<details class="code-block">
+<summary>Editing from a chosen starting time</summary>
+<pre>
+<code>def edit(image, noise, t_start, condition, predict_velocity, w=7, step_size=0.02):
+    x_start = interpolate(image, noise, t_start)
+
+    def edit_velocity(x, t):
+      return cfg_velocity(x, t, condition, w, predict_velocity)
+
+    final, _ = euler_sample(x_start, t_start, step_size, edit_velocity)
+
+    return final</code>
+</pre>
+</details>
+<p>Every comparison includes the original followed by starting times 0.02, 0.04, 0.06, 0.10, 0.14, 0.25, and 0.50. I reuse the same noise seed within the sweep.</p>
+<h3 class="h4 mt-5">Campanile and my two test images</h3>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/edit_campanile.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/edit_campanile.webp" width="1760" height="880" alt="Campanile · prompt: a high quality photo." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Campanile · prompt: <code>a high quality photo</code>.</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/edit_my_image_1.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/edit_my_image_1.webp" width="1760" height="880" alt="Landscape test image, sunrise.jpg · same prompt and starting times." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Landscape test image, <code>sunrise.jpg</code> · same prompt and starting times.</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/edit_my_image_2.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/edit_my_image_2.webp" width="1760" height="880" alt="Cat test image, cat.jpg · same prompt and starting times." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Cat test image, <code>cat.jpg</code> · same prompt and starting times.</figcaption>
+</figure>
+<h3 class="h4 mt-5">A web image and two drawings</h3>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/edit_web_image.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/edit_web_image.webp" width="1760" height="880" alt="Web-image experiment, pepe.jpg · same seven starting times." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Web-image experiment, <code>pepe.jpg</code> · same seven starting times.</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/edit_drawing_1.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/edit_drawing_1.webp" width="1760" height="880" alt="Drawing experiment 1, goose.jpg · same seven starting times." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Drawing experiment 1, <code>goose.jpg</code> · same seven starting times.</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/edit_drawing_2.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/edit_drawing_2.webp" width="1760" height="880" alt="Drawing experiment 2, pnf.jpg · same seven starting times." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Drawing experiment 2, <code>pnf.jpg</code> · same seven starting times.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="a-3-2" class="project-section section-padding">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part A · 3.2</p>
+<h2 class="display-6 fw-bold mb-4">Text-Guided Image Editing</h2>
+<p>I keep the same images, starting times, seed, and editing function, but replace the generic prompt with one that describes the desired edit. This lets me compare how the input structure and text prompt affect the result.</p>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/text_edit_campanile.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/text_edit_campanile.webp" width="1760" height="880" alt="Campanile · prompt: a top down photograph of a long cargo ship on the seas." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Campanile · prompt: <q>a top down photograph of a long cargo ship on the seas</q>.</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/text_edit_my_image_1.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/text_edit_my_image_1.webp" width="1760" height="880" alt="Landscape · prompt: an extremely close up image of a cat&#x27;s face." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Landscape · prompt: <q>an extremely close up image of a cat's face</q>.</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/text_edit_my_image_2.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/text_edit_my_image_2.webp" width="1760" height="880" alt="Cat · prompt: a digital painting of a sphinx." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Cat · prompt: <q>a digital painting of a sphinx</q>.</figcaption>
+</figure>
+<!-- REFLECTION A3.2: replace this aside with your own paragraph before submission. -->
+<aside class="author-note">
+<strong>Your observation · Where is the best balance?</strong>
+<p>Choose one sweep and a starting time. What part of the original survives, and what part follows the prompt? Explain why that setting is a useful compromise for your intended edit. Also confirm the provenance of your test photos, web image, and drawings in the companion guide.</p>
+</aside>
+</div>
+</div>
+</div>
+</section>
+<section id="a-3-3" class="project-section section-padding bg-body-tertiary">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part A · 3.3</p>
+<h2 class="display-6 fw-bold mb-4">Visual Anagrams</h2>
+<p>I predict one guided velocity in the normal orientation and another in a 180°-rotated orientation. I rotate the second prediction back and average them before taking the Euler step. Both spatial axes are flipped; this is a rotation rather than a mirror reflection.</p>
+<details class="code-block">
+<summary>Rotation and the combined velocity</summary>
+<pre>
+<code>def rotate180(x):
+    return torch.flip(x, (-2, -1))
+
+def visual_anagrams(noise, condition_a, condition_b, predict_velocity, w=7, step_size=0.02):
+
+  def anagram_velocity(x, t):
+    v_a = cfg_velocity(x, t, condition_a, w, predict_velocity)
+
+    v_b_rotated = cfg_velocity(rotate180(x), t, condition_b, w, predict_velocity)
+    v_b = rotate180(v_b_rotated)
+
+    return (v_a + v_b) / 2
+
+  final, _ = euler_sample(noise, 0, step_size, anagram_velocity)
+
+  return final</code>
+</pre>
+</details>
+<div class="illusion-grid">
+<article class="illusion-card result-card">
+<div class="illusion-stage">
+<button type="button" class="illusion-toggle rotate" aria-pressed="false" aria-label="rotate the image 180 degrees" data-effect="rotate">
+<img src="../assets/images/project3/part_a/display/anagram_0.webp" width="512" height="512" alt="Upright: an oil painting of a rushing waterfall crashing onto rocks; Rotated 180°: an oil painting of a lady dancing gracefully" class="illusion-image" loading="lazy">
+</button>
+</div>
+<div class="illusion-caption">
+<p class="interaction-hint">Hover to rotate · click or tap to keep this view</p>
+<p>
+<strong>Upright:</strong> an oil painting of a rushing waterfall crashing onto rocks</p>
+<p>
+<strong>Rotated 180°:</strong> an oil painting of a lady dancing gracefully</p>
+<a class="link-secondary small" target="_blank" rel="noopener" href="../assets/images/project3/part_a/anagram_0.png">Open original image ↗</a>
+</div>
+<div class="print-alt">
+<img src="../assets/images/project3/part_a/display/anagram_0.webp" width="512" height="512" alt="Rotated 180°: an oil painting of a lady dancing gracefully" class="print-illusion rotate" loading="lazy">
+<p>Rotated 180°: an oil painting of a lady dancing gracefully</p>
+</div>
+</article>
+<article class="illusion-card result-card">
+<div class="illusion-stage">
+<button type="button" class="illusion-toggle rotate" aria-pressed="false" aria-label="rotate the image 180 degrees" data-effect="rotate">
+<img src="../assets/images/project3/part_a/display/anagram_1.webp" width="512" height="512" alt="Upright: a watercolor painting of a wise wizard wearing an intricate robe; Rotated 180°: a watercolor painting of an ornate cathedral" class="illusion-image" loading="lazy">
+</button>
+</div>
+<div class="illusion-caption">
+<p class="interaction-hint">Hover to rotate · click or tap to keep this view</p>
+<p>
+<strong>Upright:</strong> a watercolor painting of a wise wizard wearing an intricate robe</p>
+<p>
+<strong>Rotated 180°:</strong> a watercolor painting of an ornate cathedral</p>
+<a class="link-secondary small" target="_blank" rel="noopener" href="../assets/images/project3/part_a/anagram_1.png">Open original image ↗</a>
+</div>
+<div class="print-alt">
+<img src="../assets/images/project3/part_a/display/anagram_1.webp" width="512" height="512" alt="Rotated 180°: a watercolor painting of an ornate cathedral" class="print-illusion rotate" loading="lazy">
+<p>Rotated 180°: a watercolor painting of an ornate cathedral</p>
+</div>
+</article>
+</div>
+<details class="static-views">
+<summary>Both orientations side by side</summary>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/anagram_views_0.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/anagram_views_0.webp" width="880" height="440" alt="Waterfall / dancer · both saved orientations." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Waterfall / dancer · both saved orientations.</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_a/anagram_views_1.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_a/display/anagram_views_1.webp" width="880" height="440" alt="Wizard / cathedral · both saved orientations." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Wizard / cathedral · both saved orientations.</figcaption>
+</figure>
+</details>
+<!-- REFLECTION A3.3: replace this aside with your own paragraph before submission. -->
+<aside class="author-note">
+<strong>Your observation · Which illusion reads more clearly?</strong>
+<p>Look at each image upright and rotated. Name a shared shape that supports both interpretations, then identify anything that makes one view harder to recognize. You do not need to describe both as equally successful.</p>
+</aside>
+</div>
+</div>
+</div>
+</section>
+<section id="a-3-4" class="project-section section-padding">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part A · 3.4</p>
+<h2 class="display-6 fw-bold mb-4">Hybrid Images</h2>
+<p>Instead of combining different orientations, I combine frequency bands of the guided velocity predictions. The distant prompt supplies low frequencies, while the close prompt supplies high frequencies. This happens at every Euler step, rather than blending two finished images afterward.</p>
+<div class="formula">v = lowpass(v_distant) + v_close − lowpass(v_close)</div>
+<details class="code-block">
+<summary>Combining low and high frequencies</summary>
+<pre>
+<code>def lowpass(x, sigma=16.0):
+    kernel = 2 * round(16.5 * x.shape[-1] / 64) + 1
+    return gaussian_blur(x, [kernel, kernel], [sigma, sigma])
+
+def make_hybrids(noise, condition_a, condition_b, predict_velocity, w=7, step_size=0.02):
+
+    def hybrid_velocity(x, t):
+      v_a = cfg_velocity(x, t, condition_a, w, predict_velocity)
+
+      v_b = cfg_velocity(x, t, condition_b, w, predict_velocity)
+
+      return lowpass(v_a) + v_b - lowpass(v_b)
+
+    final, _ = euler_sample(noise, 0, step_size, hybrid_velocity)
+
+    return final</code>
+</pre>
+</details>
+<p>The Gaussian low-pass uses σ = 16 and a 265 × 265 kernel at 512 × 512 resolution. Hovering shrinks the displayed image to one eighth of its width, simulating a farther view.</p>
+<div class="illusion-grid">
+<article class="illusion-card result-card">
+<div class="illusion-stage">
+<button type="button" class="illusion-toggle shrink" aria-pressed="false" aria-label="shrink the image to one eighth of its width" data-effect="shrink">
+<img src="../assets/images/project3/part_a/display/hybrid_0.webp" width="512" height="512" alt="Close / high frequency: an acrylic painting of a field of flowers; Distant / low frequency: an acrylic painting of a human heart" class="illusion-image" loading="lazy">
+</button>
+</div>
+<div class="illusion-caption">
+<p class="interaction-hint">Hover to shrink · click or tap to keep this view</p>
+<p>
+<strong>Close / high frequency:</strong> an acrylic painting of a field of flowers</p>
+<p>
+<strong>Distant / low frequency:</strong> an acrylic painting of a human heart</p>
+<a class="link-secondary small" target="_blank" rel="noopener" href="../assets/images/project3/part_a/hybrid_0.png">Open original image ↗</a>
+</div>
+<div class="print-alt">
+<img src="../assets/images/project3/part_a/display/hybrid_0.webp" width="512" height="512" alt="Distant / low frequency: an acrylic painting of a human heart" class="print-illusion shrink" loading="lazy">
+<p>Distant / low frequency: an acrylic painting of a human heart</p>
+</div>
+</article>
+<article class="illusion-card result-card">
+<div class="illusion-stage">
+<button type="button" class="illusion-toggle shrink" aria-pressed="false" aria-label="shrink the image to one eighth of its width" data-effect="shrink">
+<img src="../assets/images/project3/part_a/display/hybrid_1.webp" width="512" height="512" alt="Close / high frequency: a detailed digital painting of vibrant tree foliage; Distant / low frequency: a digital painting of a woman gazing intensely" class="illusion-image" loading="lazy">
+</button>
+</div>
+<div class="illusion-caption">
+<p class="interaction-hint">Hover to shrink · click or tap to keep this view</p>
+<p>
+<strong>Close / high frequency:</strong> a detailed digital painting of vibrant tree foliage</p>
+<p>
+<strong>Distant / low frequency:</strong> a digital painting of a woman gazing intensely</p>
+<a class="link-secondary small" target="_blank" rel="noopener" href="../assets/images/project3/part_a/hybrid_1.png">Open original image ↗</a>
+</div>
+<div class="print-alt">
+<img src="../assets/images/project3/part_a/display/hybrid_1.webp" width="512" height="512" alt="Distant / low frequency: a digital painting of a woman gazing intensely" class="print-illusion shrink" loading="lazy">
+<p>Distant / low frequency: a digital painting of a woman gazing intensely</p>
+</div>
+</article>
+</div>
+<!-- REFLECTION A3.4: replace this aside with your own paragraph before submission. -->
+<aside class="author-note">
+<strong>Your observation · Does the interpretation change with size?</strong>
+<p>For each hybrid, say what you can identify in the large and small views. Point to the broad shape that carries the distant prompt and the fine details that carry the close prompt. If one interpretation is weak, explain that limitation.</p>
+</aside>
+</div>
+</div>
+</div>
+</section>
+<section id="part-b" class="project-section section-padding bg-body-tertiary">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part B</p>
+<h2 class="display-6 fw-bold mb-4">Flow Matching from Scratch</h2>
+<p>For Part B, I train on MNIST instead of using the pretrained image model. The inputs are 28 × 28 grayscale images normalized to [0, 1]. I use seed 180, train only on the training split, and visualize results on held-out digits or fixed noise seeds.</p>
+<div class="table-responsive">
+<table class="table">
+<thead>
+<tr>
+<th scope="col">Experiment</th>
+<th scope="col">Hidden D</th>
+<th scope="col">Epochs</th>
+<th scope="col">Batch</th>
+<th scope="col">Adam learning rate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Single-step denoiser</td>
+<td>128</td>
+<td>5</td>
+<td>256</td>
+<td>10<sup>−4</sup>
+</td>
+</tr>
+<tr>
+<td>Independent pure-noise denoiser</td>
+<td>128</td>
+<td>5</td>
+<td>256</td>
+<td>10<sup>−4</sup>
+</td>
+</tr>
+<tr>
+<td>Time-conditioned flow</td>
+<td>64</td>
+<td>10</td>
+<td>64</td>
+<td>10<sup>−2</sup> + exponential decay</td>
+</tr>
+<tr>
+<td>Class-conditioned flow</td>
+<td>64</td>
+<td>10</td>
+<td>64</td>
+<td>10<sup>−2</sup> + exponential decay</td>
+</tr>
+<tr>
+<td>Class flow, no scheduler</td>
+<td>64</td>
+<td>10</td>
+<td>64</td>
+<td>Constant 10<sup>−3</sup>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section id="b-1-1" class="project-section section-padding">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part B · 1.1</p>
+<h2 class="display-6 fw-bold mb-4">Building the UNet</h2>
+<p>The UNet encodes the image through downsampling blocks, then upsamples it back to the input resolution. Skip connections concatenate encoder features with decoder features at matching spatial resolutions.</p>
+<div class="formula">28 × 28 × D → 14 × 14 × D → 7 × 7 × 2D<br>→ 1 × 1 × 2D → 7 × 7 × 2D → 14 × 14 × D → 28 × 28 × D → 28 × 28 × 1</div>
+<p>The blocks use convolutions, batch normalization, and GELU. The output layer predicts one grayscale channel.</p>
+<details class="code-block">
+<summary>My unconditional UNet implementation</summary>
+<pre>
+<code>class UnconditionalUNet(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        num_hiddens: int,
+    ):
+        super().__init__()
+        self.in_channels = in_channels
+        self.num_hiddens = num_hiddens
+        D = num_hiddens
+
+        self.conv_in = ConvBlock(in_channels, D)
+        self.down1 = DownBlock(D, D)
+        self.down2 = DownBlock(D, 2 * D)
+
+        self.flatten = Flatten()
+        self.unflatten = Unflatten(2 * D)
+
+        self.up1 = UpBlock(4 * D, D)
+        self.up2 = UpBlock(2 * D, D)
+
+        self.conv_out = ConvBlock(2 * D, D)
+        self.out = nn.Conv2d(D, in_channels, 3, 1, 1)
+
+    def forward(self, x: torch.Tensor) -&gt; torch.Tensor:
+        assert x.shape[-2:] == (28, 28), &quot;Expect input shape to be (28, 28).&quot;
+        h0 = self.conv_in(x)
+        h1 = self.down1(h0)
+        h2 = self.down2(h1)
+
+        u = self.unflatten(self.flatten(h2))
+
+        u = self.up1(torch.cat((u, h2), dim=1))
+        u = self.up2(torch.cat((u, h1), dim=1))
+
+        u = torch.cat((u, h0), dim=1)
+
+        return self.out(self.conv_out(u))
+        # ===== end of code ====</code>
+</pre>
+</details>
+</div>
+</div>
+</div>
+</section>
+<section id="b-1-2" class="project-section section-padding bg-body-tertiary">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part B · 1.2</p>
+<h2 class="display-6 fw-bold mb-4">Adding Noise to MNIST</h2>
+<p>For the single-step denoiser, I add Gaussian noise directly to a clean digit. This is different from Part A’s interpolation: the clean image is not multiplied by t.</p>
+<div class="formula">z = x + σε &nbsp; · &nbsp; ε ~ N(0, I)</div>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/noise_levels.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/noise_levels.webp" width="1440" height="240" alt="The same test digit and noise tensor, with σ = 0, 0.2, 0.4, 0.5, 0.6, 0.8, and 1.0." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">The same test digit and noise tensor, with σ = 0, 0.2, 0.4, 0.5, 0.6, 0.8, and 1.0.</figcaption>
+</figure>
+<details class="code-block">
+<summary>Visualizing the noise levels</summary>
+<pre>
+<code># Visualize images at different noisy level
+sigmas = [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0]
+
+sweep_clean = test_dataset[0][0].unsqueeze(0).to(device)
+
+sweep_epsilon = torch.randn(sweep_clean.shape, generator=torch.Generator().manual_seed(SEED)).to(device)
+
+noisy_images = torch.cat([sweep_clean + sigma * sweep_epsilon for sigma in sigmas])
+
+show_grid(noisy_images, &quot;noisy input: sigma=&quot; + str(sigmas), &quot;noise_levels.png&quot;, nrow=7)
+# ===== end of code ====</code>
+</pre>
+</details>
+</div>
+</div>
+</div>
+</section>
+<section id="b-1-2-1" class="project-section section-padding">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part B · 1.2.1</p>
+<h2 class="display-6 fw-bold mb-4">Training the Single-Step Denoiser</h2>
+<p>I train a D = 128 UNet for five epochs to reconstruct clean digits from inputs with σ = 0.5. Each batch receives freshly sampled noise, so the model does not see exactly the same corrupted images in every epoch.</p>
+<div class="formula">loss = mean((Dθ(x + 0.5ε) − x)²)</div>
+<details class="code-block">
+<summary>Training loop and epoch checkpoint</summary>
+<pre>
+<code># The training loops
+train_losses = []
+for epoch in range(num_epochs):
+    for i, (images, _) in enumerate(tqdm(train_loader)):
+        if epoch == 0 and i == 0:
+            denoise_states = {}
+        # This runs before epoch 2&#x27;s first forward pass: epoch 1 is complete.
+        if epoch == 1 and i == 0:
+            denoise_states[1] = {
+                name: tensor.detach().cpu().clone()
+                for name, tensor in model.state_dict().items()
+            }
+
+        model.train()
+        images = images.to(device)
+        noise = torch.randn_like(images)
+        noisy_images = images + noise_level * noise
+
+        outputs = model(noisy_images)
+
+        loss = criterion(outputs, images)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        train_losses.append(loss.item())</code>
+</pre>
+</details>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/denoise_loss.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/denoise_loss.webp" width="960" height="360" alt="Training MSE over optimizer steps. The lighter line is the raw batch loss; the darker line is a 100-step moving average." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Training MSE over optimizer steps. The lighter line is the raw batch loss; the darker line is a 100-step moving average.</figcaption>
+</figure>
+<div class="two-up">
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/denoise_epoch1.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/denoise_epoch1.webp" width="1440" height="1380" alt="Clean | noisy | denoised · epoch 1" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Clean | noisy | denoised · epoch 1</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/denoise_epoch5.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/denoise_epoch5.webp" width="1440" height="1380" alt="Clean | noisy | denoised · epoch 5" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Clean | noisy | denoised · epoch 5</figcaption>
+</figure>
+</div>
+<p>Each row shows the clean digit, noisy input, and reconstruction. The same ten test images and fixed noise tensor are used at both checkpoints.</p>
+</div>
+</div>
+</div>
+</section>
+<section id="b-1-2-2" class="project-section section-padding bg-body-tertiary">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part B · 1.2.2</p>
+<h2 class="display-6 fw-bold mb-4">Out-of-Distribution Noise</h2>
+<p>The model was trained only at σ = 0.5. I test the same digit and noise pattern at a range of noise levels to see how its reconstruction changes away from the training setting.</p>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/ood_denoising.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/ood_denoising.webp" width="1440" height="276" alt="Top: noisy inputs. Bottom: model outputs. Columns use σ = 0, 0.2, 0.4, 0.5, 0.6, 0.8, and 1.0." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Top: noisy inputs. Bottom: model outputs. Columns use σ = 0, 0.2, 0.4, 0.5, 0.6, 0.8, and 1.0.</figcaption>
+</figure>
+<p>The displayed outputs remain digit-like, but the highest-noise inputs are more ambiguous. Clipping to [0, 1] is only used to display the results; the model receives the noisy tensors directly.</p>
+</div>
+</div>
+</div>
+</section>
+<section id="b-1-2-3" class="project-section section-padding">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part B · 1.2.3</p>
+<h2 class="display-6 fw-bold mb-4">Denoising Pure Noise</h2>
+<p>I train a fresh UNet using independent Gaussian noise as the input and clean digits as the targets. There is no longer a digit signal in the input telling the model which target it should reconstruct.</p>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/pure_noise_loss.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/pure_noise_loss.webp" width="960" height="360" alt="Training loss for the fresh pure-noise denoiser." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Training loss for the fresh pure-noise denoiser.</figcaption>
+</figure>
+<div class="two-up">
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/pure_noise_epoch1.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/pure_noise_epoch1.webp" width="1440" height="552" alt="Pure-noise inputs → predicted images · epoch 1" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Pure-noise inputs → predicted images · epoch 1</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/pure_noise_epoch5.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/pure_noise_epoch5.webp" width="1440" height="552" alt="Pure-noise inputs → predicted images · epoch 5" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Pure-noise inputs → predicted images · epoch 5</figcaption>
+</figure>
+</div>
+<figure class="result-figure mean-image">
+<a class="image-link" href="../assets/images/project3/part_b/training_mean.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/training_mean.webp" width="1440" height="240" alt="Mean MNIST training image" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">The average of the training digits, shown as a reference.</figcaption>
+</figure>
+<p>Under squared error, the optimal predictor is the conditional mean E[x | z]. Since z is independent of the target digit in this experiment, this reduces to E[x]: the average training image. This explains why minimizing the loss can lead to similar blurry outputs rather than distinct sampled digits.</p>
+<!-- REFLECTION B1.2.3: replace this aside with your own paragraph before submission. -->
+<aside class="author-note">
+<strong>Your observation · Describe the averaging you see</strong>
+<p>Compare the epoch 1 and epoch 5 grids with the training-set mean. Describe their repeated strokes, blur, and variation across noise inputs. Then connect those visible patterns to the MSE explanation above; do not call the average image a correctly generated digit.</p>
+</aside>
+</div>
+</div>
+</div>
+</section>
+<section id="b-2-1" class="project-section section-padding bg-body-tertiary">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part B · 2.1</p>
+<h2 class="display-6 fw-bold mb-4">Adding Time Conditioning</h2>
+<p>For flow matching, the model needs to know where it is along the path from noise to a digit. I embed the scalar time t using two fully connected blocks and use those embeddings to modulate the decoder features.</p>
+<div class="formula">xₜ = (1 − t)x₀ + tx₁<br>target velocity = x₁ − x₀<br>loss = mean((uθ(xₜ, t) − (x₁ − x₀))²)</div>
+<details class="code-block">
+<summary>Time embeddings and the time-conditioned UNet</summary>
+<pre>
+<code>class FCBlock(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int):
+        super().__init__()
+        self.net = nn.Sequential(nn.Linear(in_channels, out_channels), nn.GELU(), nn.Linear(out_channels, out_channels))
+
+    def forward(self, x: torch.Tensor) -&gt; torch.Tensor:
+        return self.net(x)
+
+
+class TimeConditionalUNet(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        num_classes: int,
+        num_hiddens: int,
+    ):
+        super().__init__()
+        self.in_channels = in_channels
+        self.num_hiddens = num_hiddens
+        D = num_hiddens
+        self.conv_in = ConvBlock(in_channels, D)
+        self.down1 = DownBlock(D, D)
+        self.down2 = DownBlock(D, 2 * D)
+        self.flatten = Flatten()
+        self.unflatten = Unflatten(2 * D)
+        self.up1 = UpBlock(4 * D, D)
+        self.up2 = UpBlock(2 * D, D)
+        self.conv_out = ConvBlock(2 * D, D)
+        self.out = nn.Conv2d(D, in_channels, 3, 1, 1)
+
+        self.fc1_t = FCBlock(1, 2 * num_hiddens)
+        self.fc2_t = FCBlock(1, num_hiddens)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        t: torch.Tensor,
+    ) -&gt; torch.Tensor:
+        &quot;&quot;&quot;
+        Args:
+            x: (N, C, H, W) input tensor.
+            t: (N,) normalized time tensor.
+
+        Returns:
+            (N, C, H, W) output tensor.
+        &quot;&quot;&quot;
+        assert x.shape[-2:] == (28, 28), &quot;Expect input shape to be (28, 28).&quot;
+        h0 = self.conv_in(x)
+        h1 = self.down1(h0)
+        h2 = self.down2(h1)
+
+        u = self.unflatten(self.flatten(h2))
+
+        t = t.to(device=x.device, dtype=x.dtype).reshape(x.shape[0], 1)
+
+        t1 = self.fc1_t(t)[:, :, None, None]
+        t2 = self.fc2_t(t)[:, :, None, None]
+
+        u = u * t1
+        u = self.up1(torch.cat((u, h2), dim=1))
+
+        u = u * t2
+        u = self.up2(torch.cat((u, h1), dim=1))
+
+        u = torch.cat((u, h0), dim=1)
+
+        return self.out(self.conv_out(u))
+        # ===== end of code ====</code>
+</pre>
+</details>
+<details class="code-block">
+<summary>The flow-matching training objective</summary>
+<pre>
+<code>def time_fm_forward(
+    unet: TimeConditionalUNet,
+    x_1: torch.Tensor,
+    num_ts: int,
+) -&gt; torch.Tensor:
+    &quot;&quot;&quot;Algorithm 1
+
+    Args:
+        unet: TimeConditionalUNet
+        x_1: (N, C, H, W) input tensor.
+        num_ts: int, number of timesteps.
+    Returns:
+        (,) loss.
+    &quot;&quot;&quot;
+    unet.train()
+    x_0 = torch.randn_like(x_1)
+
+    t = torch.rand(x_1.shape[0], device=x_1.device, dtype=x_1.dtype)
+
+    t_image = t[:, None, None, None]
+
+    x_t = (1 - t_image) * x_0 + t_image * x_1
+
+    target_velocity = x_1 - x_0
+    predicted_velocity = unet(x_t, t)
+
+    return F.mse_loss(predicted_velocity, target_velocity)</code>
+</pre>
+</details>
+<p>Time is sampled continuously in [0, 1] during training. The <code>num_ts</code> argument sets the sampling resolution in the surrounding interface; this training function does not quantize the random training times.</p>
+</div>
+</div>
+</div>
+</section>
+<section id="b-2-2" class="project-section section-padding">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part B · 2.2</p>
+<h2 class="display-6 fw-bold mb-4">Training the Time-Conditioned UNet</h2>
+<p>I train the D = 64 model for ten epochs with batch size 64. Adam starts at 0.01, and the exponential scheduler multiplies the learning rate by 0.1<sup>1/10</sup> after every epoch, taking it to 0.001 after ten scheduler updates.</p>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/time_flow_loss.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/time_flow_loss.webp" width="960" height="360" alt="Time-conditioned flow training loss over all ten epochs." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Time-conditioned flow training loss over all ten epochs.</figcaption>
+</figure>
+<details class="code-block">
+<summary>Training configuration, loop, and checkpoints</summary>
+<pre>
+<code># Feel free to use code from part 1.2.1
+# as they should be very similar
+torch.manual_seed(SEED)
+
+time_num_epochs = 10
+time_train_loader = make_loader(batch_size=64)
+time_unet = TimeConditionalUNet(1, 10, 64).to(device)
+time_optimizer = torch.optim.Adam(time_unet.parameters(), lr=1e-2)
+time_scheduler = torch.optim.lr_scheduler.ExponentialLR(time_optimizer, gamma=0.1 ** (1.0 / time_num_epochs))
+time_train_losses = []
+time_states = {}
+
+for epoch in range(time_num_epochs):
+    time_unet.train()
+    for images, _ in tqdm(time_train_loader):
+        images = images.to(device)
+        time_optimizer.zero_grad()
+        loss = time_fm_forward(time_unet, images, num_ts=50)
+        loss.backward()
+        time_optimizer.step()
+        time_train_losses.append(loss.item())
+
+    time_scheduler.step()
+    print(f&#x27;Time flow: finished epoch {epoch + 1}&#x27;, flush=True)
+    if epoch + 1 in (1, 5, 10):
+        time_states[epoch + 1] = {
+            name: tensor.detach().cpu().clone()
+            for name, tensor in time_unet.state_dict().items()
+        }
+        torch.save(time_states[epoch + 1], OUT / f&#x27;time_flow_epoch{epoch + 1}.pt&#x27;)
+
+loss_plot(time_train_losses, &#x27;time_flow&#x27;)
+np.save(OUT / &#x27;time_flow_losses.npy&#x27;, np.asarray(time_train_losses))
+
+# ===== end of code ====</code>
+</pre>
+</details>
+</div>
+</div>
+</div>
+</section>
+<section id="b-2-3" class="project-section section-padding bg-body-tertiary">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part B · 2.3</p>
+<h2 class="display-6 fw-bold mb-4">Sampling with Time Conditioning</h2>
+<p>At test time, I start with Gaussian noise and take 50 Euler updates from t = 0 to t = 1. I reuse the same seed at each checkpoint so the panels compare how the model changes during training.</p>
+<details class="code-block">
+<summary>Sampling 40 digits with Euler integration</summary>
+<pre>
+<code>@torch.inference_mode()
+def time_fm_sample(
+    unet: TimeConditionalUNet,
+    img_wh: tuple[int, int],
+    num_ts: int,
+    seed: int = 0,
+) -&gt; torch.Tensor:
+    &quot;&quot;&quot;Algorithm 2
+
+    Args:
+        unet: TimeConditionalUNet
+        img_wh: (H, W) output image width and height.
+        num_ts: int, number of timesteps.
+        seed: int, random seed.
+
+    Returns:
+        (N, C, H, W) final sample.
+    &quot;&quot;&quot;
+    unet.eval()
+    parameter = next(unet.parameters())
+
+    x = torch.randn((40, unet.in_channels, *img_wh), generator=torch.Generator().manual_seed(seed), dtype=parameter.dtype).to(parameter.device)
+
+    dt = 1.0 / num_ts
+
+    for i in range(num_ts):
+        t = torch.full((x.shape[0],), i/num_ts, device=x.device, dtype=x.dtype)
+        x = x + dt * unet(x, t)
+
+    return x
+    # ===== end of code ====</code>
+</pre>
+</details>
+<div class="epoch-grid">
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/time_flow_epoch1.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/time_flow_epoch1.webp" width="1440" height="552" alt="Time-only flow · 50 Euler steps · epoch 1" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Time-only flow · 50 Euler steps · epoch 1</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/time_flow_epoch5.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/time_flow_epoch5.webp" width="1440" height="552" alt="Time-only flow · 50 Euler steps · epoch 5" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Time-only flow · 50 Euler steps · epoch 5</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/time_flow_epoch10.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/time_flow_epoch10.webp" width="1440" height="552" alt="Time-only flow · 50 Euler steps · epoch 10" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Time-only flow · 50 Euler steps · epoch 10</figcaption>
+</figure>
+</div>
+<p>These are unconditional digit samples: no class label tells the network which digit to produce. Several outputs are recognizable, while others have ambiguous or irregular strokes.</p>
+</div>
+</div>
+</div>
+</section>
+<section id="b-2-4" class="project-section section-padding">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part B · 2.4</p>
+<h2 class="display-6 fw-bold mb-4">Adding Class Conditioning</h2>
+<p>I encode the digit label as a one-hot vector and add two class-embedding blocks. During training, I drop the class condition on 10% of examples by setting that vector to zero. This lets the same network provide conditional and unconditional velocity predictions.</p>
+<div class="formula">decoder feature = class_embedding × feature + time_embedding</div>
+<details class="code-block">
+<summary>Class and time embeddings in the UNet</summary>
+<pre>
+<code>class ClassConditionalUNet(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        num_classes: int,
+        num_hiddens: int,
+    ):
+        super().__init__()
+        self.in_channels = in_channels
+        self.num_hiddens = num_hiddens
+        D = num_hiddens
+        self.conv_in = ConvBlock(in_channels, D)
+        self.down1 = DownBlock(D, D)
+        self.down2 = DownBlock(D, 2 * D)
+        self.flatten = Flatten()
+        self.unflatten = Unflatten(2 * D)
+        self.up1 = UpBlock(4 * D, D)
+        self.up2 = UpBlock(2 * D, D)
+        self.conv_out = ConvBlock(2 * D, D)
+        self.out = nn.Conv2d(D, in_channels, 3, 1, 1)
+
+        self.fc1_t = FCBlock(1, 2 * num_hiddens)
+        self.fc2_t = FCBlock(1, num_hiddens)
+
+        self.num_classes = num_classes
+        self.fc1_c = FCBlock(num_classes, 2*num_hiddens)
+        self.fc2_c = FCBlock(num_classes, num_hiddens)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        c: torch.Tensor,
+        t: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
+    ) -&gt; torch.Tensor:
+        &quot;&quot;&quot;
+        Args:
+            x: (N, C, H, W) input tensor.
+            c: (N,) int64 condition tensor.
+            t: (N,) normalized time tensor.
+            mask: (N,) mask tensor. If not None, mask out condition when mask == 0.
+
+        Returns:
+            (N, C, H, W) output tensor.
+        &quot;&quot;&quot;
+        assert x.shape[-2:] == (28, 28), &quot;Expect input shape to be (28, 28).&quot;
+        h0 = self.conv_in(x)
+        h1 = self.down1(h0)
+        h2 = self.down2(h1)
+
+        u = self.unflatten(self.flatten(h2))
+
+        t = t.to(device=x.device, dtype=x.dtype).reshape(x.shape[0], 1)
+
+        c = F.one_hot(c.to(device=x.device, dtype=torch.long), self.num_classes).to(x.dtype)
+
+        if mask is not None:
+          c = c * mask.to(device=x.device, dtype=x.dtype).reshape(-1, 1)
+
+        t1 = self.fc1_t(t)[:, :, None, None]
+        t2 = self.fc2_t(t)[:, :, None, None]
+
+        c1 = self.fc1_c(c)[:, :, None, None]
+        c2 = self.fc2_c(c)[:, :, None, None]
+
+        u = c1 * u + t1
+        u = self.up1(torch.cat((u, h2), dim=1))
+
+        u = c2 * u + t2
+        u = self.up2(torch.cat((u, h1), dim=1))
+
+        u = torch.cat((u, h0), dim=1)
+        return self.out(self.conv_out(u))
+        # ===== end of code ====</code>
+</pre>
+</details>
+<details class="code-block">
+<summary>Class dropout and the training objective</summary>
+<pre>
+<code>def class_fm_forward(
+    unet: ClassConditionalUNet,
+    x_1: torch.Tensor,
+    c: torch.Tensor,
+    p_uncond: float,
+    num_ts: int,
+) -&gt; torch.Tensor:
+    &quot;&quot;&quot;Algorithm 3
+
+    Args:
+        unet: ClassConditionalUNet
+        x_1: (N, C, H, W) input tensor.
+        c: (N,) int64 condition tensor.
+        p_uncond: float, probability of unconditioning the condition.
+        num_ts: int, number of timesteps.
+
+    Returns:
+        (,) loss.
+    &quot;&quot;&quot;
+    unet.train()
+    x_0 = torch.randn_like(x_1)
+
+    t = torch.rand(x_1.shape[0], device=x_1.device, dtype=x_1.dtype)
+
+    t_image = t[:, None, None, None]
+
+    x_t = (1 - t_image) * x_0 + t_image * x_1
+
+    mask = (torch.rand(x_1.shape[0], device=x_1.device) &gt;= p_uncond).to(x_1.dtype)
+
+    predicted_velocity = unet(x_t, c, t, mask)
+
+    return F.mse_loss(predicted_velocity, x_1 - x_0)
+    # ===== end of code ====</code>
+</pre>
+</details>
+</div>
+</div>
+</div>
+</section>
+<section id="b-2-5" class="project-section section-padding bg-body-tertiary">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part B · 2.5</p>
+<h2 class="display-6 fw-bold mb-4">Training the Class-Conditioned UNet</h2>
+<p>I keep the ten-epoch schedule, D = 64, batch size 64, and initial learning rate 0.01. The difference is that the model now receives the class information, with dropout probability 0.1.</p>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/class_flow_loss.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/class_flow_loss.webp" width="960" height="360" alt="Class-conditioned flow training loss over all ten epochs." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Class-conditioned flow training loss over all ten epochs.</figcaption>
+</figure>
+<details class="code-block">
+<summary>Training with class conditioning</summary>
+<pre>
+<code># Train a fresh class-conditioned D=64 UNet for 10 epochs, batch size 64,
+# Adam initial lr=1e-2, class dropout probability .1, exponential gamma=.1**(1/10).
+# Save checkpoints at epochs 1,5,10. Then train an independent no-scheduler
+# comparison; choose/document a constant learning rate and compare results.
+torch.manual_seed(SEED)
+class_num_epochs = 10
+class_train_loader = make_loader(batch_size=64)
+class_unet = ClassConditionalUNet(1, 10, 64).to(device)
+class_optimizer = torch.optim.Adam(class_unet.parameters(), lr=1e-2)
+class_scheduler = torch.optim.lr_scheduler.ExponentialLR(
+    class_optimizer, gamma=0.1 ** (1.0 / class_num_epochs))
+class_train_losses = []
+class_states = {}
+
+for epoch in range(class_num_epochs):
+    class_unet.train()
+    for images, labels in tqdm(class_train_loader):
+        images = images.to(device)
+        labels = labels.to(device)
+        class_optimizer.zero_grad()
+        loss = class_fm_forward(class_unet, images, labels, p_uncond=0.1, num_ts=300)
+        loss.backward()
+        class_optimizer.step()
+        class_train_losses.append(loss.item())
+
+    class_scheduler.step()
+    print(f&#x27;Class flow: finished epoch {epoch + 1}&#x27;, flush=True)
+    if epoch + 1 in (1, 5, 10):
+        class_states[epoch + 1] = {
+            name: tensor.detach().cpu().clone()
+            for name, tensor in class_unet.state_dict().items()
+        }
+        torch.save(class_states[epoch + 1], OUT / f&#x27;class_flow_epoch{epoch + 1}.pt&#x27;)
+
+loss_plot(class_train_losses, &#x27;class_flow&#x27;)
+np.save(OUT / &#x27;class_flow_losses.npy&#x27;, np.asarray(class_train_losses))
+del class_unet, class_optimizer, class_scheduler
+if device.type == &#x27;cuda&#x27;: torch.cuda.empty_cache()</code>
+</pre>
+</details>
+</div>
+</div>
+</div>
+</section>
+<section id="b-2-6" class="project-section section-padding">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Part B · 2.6</p>
+<h2 class="display-6 fw-bold mb-4">Class-Conditioned Sampling</h2>
+<p>I generate four instances of each digit, using 300 Euler steps and guidance scale γ = 5. The columns are labeled 0 through 9, and each row contains one sample for each class.</p>
+<div class="formula">v = v_unconditional + γ(v_conditional − v_unconditional) &nbsp; · &nbsp; γ = 5</div>
+<p>This guidance convention differs from Part A’s <code>v_c + w(v_c − v_u)</code>. Here, γ = 1 would give the ordinary conditional velocity.</p>
+<details class="code-block">
+<summary>Guided class-conditioned sampling</summary>
+<pre>
+<code>@torch.inference_mode()
+def class_fm_sample(
+    unet: ClassConditionalUNet,
+    c: torch.Tensor,
+    img_wh: tuple[int, int],
+    num_ts: int,
+    guidance_scale: float = 5.0,
+    seed: int = 0,
+) -&gt; torch.Tensor:
+    &quot;&quot;&quot;Algorithm 4
+
+    Args:
+        unet: ClassConditionalUNet
+        c: (N,) int64 condition tensor. Only for class-conditional
+        img_wh: (H, W) output image width and height.
+        num_ts: int, number of timesteps.
+        guidance_scale: float, CFG scale.
+        seed: int, random seed.
+
+    Returns:
+        (N, C, H, W) final sample.
+        (N, T_animation, C, H, W) caches.
+    &quot;&quot;&quot;
+    unet.eval()
+    parameter = next(unet.parameters())
+
+    c = c.to(device=parameter.device, dtype=torch.long)
+    x = torch.randn((len(c), unet.in_channels, *img_wh), generator=torch.Generator().manual_seed(seed), dtype=parameter.dtype).to(parameter.device)
+
+    keep = torch.ones(len(c), device=x.device, dtype=x.dtype)
+    drop = torch.zeros_like(keep)
+
+    dt = 1.0 / num_ts
+    caches = [x.detach().cpu().clone()]
+
+    for i in range(num_ts):
+        t = torch.full((len(c),), i / num_ts, device=x.device,dtype=x.dtype)
+
+        v_u = unet(x, c, t, drop)
+        v_c = unet(x, c, t, keep)
+
+        v = v_u + guidance_scale * (v_c - v_u)
+        x = x + dt * v
+
+        if (i + 1) % 10 == 0 or i == num_ts - 1:
+            caches.append(x.detach().cpu().clone())
+
+    return x, torch.stack(caches, dim=1)
+    # ===== end of code ====</code>
+</pre>
+</details>
+<div class="epoch-grid">
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/class_flow_epoch1.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/class_flow_epoch1.webp" width="1440" height="552" alt="Class-conditioned · columns 0–9 · epoch 1" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Class-conditioned · columns 0–9 · epoch 1</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/class_flow_epoch5.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/class_flow_epoch5.webp" width="1440" height="552" alt="Class-conditioned · columns 0–9 · epoch 5" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Class-conditioned · columns 0–9 · epoch 5</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/class_flow_epoch10.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/class_flow_epoch10.webp" width="1440" height="552" alt="Class-conditioned · columns 0–9 · epoch 10" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Class-conditioned · columns 0–9 · epoch 10</figcaption>
+</figure>
+</div>
+<h3 class="h4 mt-5">Removing the learning-rate scheduler</h3>
+<p>For a separate run, I remove the scheduler and reduce Adam’s constant learning rate to 0.001. The architecture, ten training epochs, batch size, class dropout, sampling steps, guidance scale, and seed remain the same. The smaller fixed step size is the compensation I test for losing the decay schedule.</p>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/class_flow_no_scheduler_loss.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/class_flow_no_scheduler_loss.webp" width="960" height="360" alt="Training loss with no scheduler and a constant learning rate of 0.001." class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">Training loss with no scheduler and a constant learning rate of 0.001.</figcaption>
+</figure>
+<div class="epoch-grid">
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/class_flow_no_scheduler_epoch1.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/class_flow_no_scheduler_epoch1.webp" width="1440" height="552" alt="No scheduler · constant LR 0.001 · epoch 1" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">No scheduler · constant LR 0.001 · epoch 1</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/class_flow_no_scheduler_epoch5.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/class_flow_no_scheduler_epoch5.webp" width="1440" height="552" alt="No scheduler · constant LR 0.001 · epoch 5" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">No scheduler · constant LR 0.001 · epoch 5</figcaption>
+</figure>
+<figure class="result-figure ">
+<a class="image-link" href="../assets/images/project3/part_b/class_flow_no_scheduler_epoch10.png" target="_blank" rel="noopener">
+<img src="../assets/images/project3/part_b/display/class_flow_no_scheduler_epoch10.webp" width="1440" height="552" alt="No scheduler · constant LR 0.001 · epoch 10" class="comparison-frame" loading="lazy">
+</a>
+<figcaption class="figure-caption mt-2">No scheduler · constant LR 0.001 · epoch 10</figcaption>
+</figure>
+</div>
+<details class="code-block">
+<summary>The independent no-scheduler run</summary>
+<pre>
+<code># independent no-scheduler experiment, learning rate is based on proposed starting point
+CONSTANT_LR = 1e-3
+torch.manual_seed(SEED)
+no_scheduler_num_epochs = 10
+no_scheduler_loader = make_loader(batch_size=64)
+no_scheduler_unet = ClassConditionalUNet(1, 10, 64).to(device)
+no_scheduler_optimizer = torch.optim.Adam(no_scheduler_unet.parameters(), lr=CONSTANT_LR)
+no_scheduler_train_losses = []
+no_scheduler_states = {}
+
+for epoch in range(no_scheduler_num_epochs):
+    no_scheduler_unet.train()
+    for images, labels in tqdm(no_scheduler_loader):
+        images = images.to(device)
+        labels = labels.to(device)
+        no_scheduler_optimizer.zero_grad()
+        loss = class_fm_forward(no_scheduler_unet, images, labels, p_uncond=0.1, num_ts=300)
+        loss.backward()
+        no_scheduler_optimizer.step()
+        no_scheduler_train_losses.append(loss.item())
+
+    print(f&#x27;No-scheduler flow: finished epoch {epoch + 1}&#x27;, flush=True)
+    if epoch + 1 in (1, 5, 10):
+        no_scheduler_states[epoch + 1] = {
+            name: tensor.detach().cpu().clone()
+            for name, tensor in no_scheduler_unet.state_dict().items()
+        }
+        torch.save(no_scheduler_states[epoch + 1],
+                    OUT / f&#x27;class_flow_no_scheduler_epoch{epoch + 1}.pt&#x27;)
+
+loss_plot(no_scheduler_train_losses, &#x27;class_flow_no_scheduler&#x27;)
+np.save(OUT / &#x27;class_flow_no_scheduler_losses.npy&#x27;, np.asarray(no_scheduler_train_losses))
+del no_scheduler_unet, no_scheduler_optimizer
+if device.type == &#x27;cuda&#x27;: torch.cuda.empty_cache()</code>
+</pre>
+</details>
+<!-- REFLECTION B2.6: replace this aside with your own paragraph before submission. -->
+<aside class="author-note">
+<strong>Your observation · Did the simpler schedule preserve quality?</strong>
+<p>Compare the epoch 10 class-conditioned grids with and without the scheduler, using the same columns and rows. Are the requested classes recognizable? Compare stroke clarity, malformed digits, and variation within each class. State what the visual evidence supports; there is no saved quantitative image-quality score.</p>
+</aside>
+</div>
+</div>
+</div>
+</section>
+<section id="reflection" class="project-section section-padding bg-body-tertiary">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Reflection</p>
+<h2 class="display-6 fw-bold mb-4">What I Learned</h2>
+<!-- REFLECTION Reflection: replace this aside with your own paragraph before submission. -->
+<aside class="author-note">
+<strong>Your observation · Your main takeaway</strong>
+<p>Choose one concrete experiment: a failed edit at low starting time, a successful shared shape in an anagram, the pure-noise averaging result, or the difference between time-only and class-conditioned sampling. Explain what you expected, what the result showed, and what you would change next.</p>
+</aside>
+</div>
+</div>
+</div>
+</section>
+<section id="code-and-resources" class="project-section section-padding">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-lg-10">
+<p class="text-secondary fw-semibold mb-2">Code & references</p>
+<h2 class="display-6 fw-bold mb-4">Notebooks and Course Pages</h2>
+<p>The completed notebooks contain the implementations, settings, and recorded outputs used on this page. The course pages define the deliverable structure.</p>
+<div class="d-flex flex-wrap gap-2">
+</div>
+<p class="mt-4">
+<a href="https://cal-cs180.github.io/fa26/hw/proj3-flow/parta.html" target="_blank" rel="noopener">Part A assignment</a> · <a href="https://cal-cs180.github.io/fa26/hw/proj3-flow/partb.html" target="_blank" rel="noopener">Part B assignment</a>
+</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<footer class="border-top py-4">
+<div class="container text-secondary small">© 2026 Kenneth Poh Ren Kang</div>
+</footer>
+<script src="../assets/project3.js">
+</script>
+</body>
+</html>

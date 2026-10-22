@@ -1,0 +1,38 @@
+{
+  "seed": 180,
+  "group": "all",
+  "torch": "2.11.0+cu130",
+  "device": "cuda",
+  "gpu": "Tesla T4",
+  "visible_devices": null,
+  "precision": "float32 with TF32 convolution/matmul enabled",
+  "denoise": {
+    "epochs": 5,
+    "D": 128,
+    "batch_size": 256,
+    "lr": 0.0001,
+    "sigma": 0.5
+  },
+  "pure_noise": {
+    "epochs": 5,
+    "D": 128,
+    "batch_size": 256,
+    "lr": 0.0001
+  },
+  "time_flow": {
+    "D": 64,
+    "epochs": 10,
+    "batch_size": 64,
+    "lr": 0.01,
+    "sampling_steps": 50
+  },
+  "class_flow_settings": {
+    "D": 64,
+    "epochs": 10,
+    "batch_size": 64,
+    "p_uncond": 0.1,
+    "sampling_steps": 300,
+    "guidance_scale": 5.0,
+    "constant_lr_proposal": 0.001
+  }
+}
