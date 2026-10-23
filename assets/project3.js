@@ -6,13 +6,3 @@ document.querySelectorAll('.illusion-toggle').forEach(button => {
     button.setAttribute('aria-pressed', String(active));
   });
 });
-
-// Print code snippets in full; restore the visitor's choices afterward.
-let openBeforePrint = [];
-window.addEventListener('beforeprint', () => {
-  openBeforePrint = [...document.querySelectorAll('details')].map(details => [details, details.open]);
-  openBeforePrint.forEach(([details]) => { details.open = true; });
-});
-window.addEventListener('afterprint', () => {
-  openBeforePrint.forEach(([details, wasOpen]) => { details.open = wasOpen; });
-});

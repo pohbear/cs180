@@ -83,13 +83,6 @@
 <p class="text-secondary fw-semibold mb-2">Part A · 1.1</p>
 <h2 class="display-6 fw-bold mb-4">Constructing Noisy Training Inputs</h2>
 <p>I interpolate between the image and Gaussian noise. This scales both terms; it is different from adding noise to an unchanged image. Smaller t leaves less of the original image, while larger t keeps more of it.</p>
-<details class="code-block">
-<summary>Interpolation</summary>
-<pre>
-<code>def interpolate(image, noise, t):
-    return (1 - t) * noise + t * image</code>
-</pre>
-</details>
 <figure class="result-figure ">
 <a class="image-link" href="../assets/images/project3/part_a/training_inputs.png" target="_blank" rel="noopener">
 <img src="../assets/images/project3/part_a/display/training_inputs.webp" width="1760" height="440" alt="Original and noisy inputs at t = 0.25, 0.50, and 0.75. The same Gaussian noise tensor is reused." class="comparison-frame" loading="lazy">
@@ -110,18 +103,6 @@
 <p>As a baseline, I divide each noisy input by t to restore the image amplitude, then apply a Gaussian blur. Dividing by t also amplifies the noise, so the lower-t inputs are harder to recover.</p>
 <div class="formula">xₜ / t = x₁ + ((1 − t) / t)ε</div>
 <p>I test σ = 1, 2, 4, 8, and 16 and select the smallest reconstruction MSE against the known original for each input. This is an evaluation choice with access to the original, rather than a blind denoising rule.</p>
-<details class="code-block">
-<summary>Selecting the Gaussian blur strength</summary>
-<pre>
-<code>if GROUP in (&quot;all&quot;,&quot;core&quot;):
-    blurred = {}
-    for t,x in noisy.items():
-        candidates = {s: gaussian_blur(x/t, [int(6*s+1)]*2, [s,s]) for s in [1.,2.,4.,8.,16.]}
-        sigma = min(candidates, key=lambda s: ((candidates[s]-image)**2).mean().item())
-        blurred[t] = candidates[sigma]
-        panel(f&quot;blur_{t}&quot;, {&quot;noisy&quot;:x,f&quot;blur sigma={sigma}&quot;:blurred[t]}, columns=2)</code>
-</pre>
-</details>
 <figure class="result-figure ">
 <a class="image-link" href="../assets/images/project3/part_a/blur_0.25.png" target="_blank" rel="noopener">
 <img src="../assets/images/project3/part_a/display/blur_0.25.webp" width="880" height="440" alt="t = 0.25; chosen Gaussian σ = 16. Left: noisy input. Right: amplitude-corrected, blurred output." class="comparison-frame" loading="lazy">
@@ -152,14 +133,6 @@
 <h2 class="display-6 fw-bold mb-4">One-Step Denoising</h2>
 <p>The flow model predicts velocity, rather than the clean image directly. I multiply that prediction by the remaining time and add it to the current noisy state.</p>
 <div class="formula">x̂₁ = xₜ + (1 − t)vθ(xₜ, t, c)</div>
-<details class="code-block">
-<summary>One model prediction</summary>
-<pre>
-<code>def one_step_denoise(x, t, condition, predict_velocity):
-    v = predict_velocity(x, t, condition)
-    return x + (1 - t) * v</code>
-</pre>
-</details>
 <figure class="result-figure ">
 <a class="image-link" href="../assets/images/project3/part_a/one_step_0.25.png" target="_blank" rel="noopener">
 <img src="../assets/images/project3/part_a/display/one_step_0.25.webp" width="1320" height="440" alt="t = 0.25. Original, saved noisy input, and one-step estimate." class="comparison-frame" loading="lazy">
@@ -190,30 +163,6 @@
 <h2 class="display-6 fw-bold mb-4">Visualizing Velocity</h2>
 <p>Because I know both the original image and the sampled noise, I can compute the ground-truth velocity. I compare the actual update needed to reach the original with the model’s predicted update.</p>
 <div class="formula">v_gt = x₁ − ε<br>predicted update = (1 − t)vθ<br>target update = x₁ − xₜ<br>error = sqrt(mean over RGB of (predicted update − target update)²)</div>
-<details class="code-block">
-<summary>Predicted updates and pixelwise RMS error</summary>
-<pre>
-<code>@torch.inference_mode()
-def velocity_diagnostics(x_t, t, clean_image, epsilon, condition, predict_velocity):
-    &quot;&quot;&quot;Return predicted_update, ground_truth_update, and error_map.
-
-    Both updates have shape (B, 3, H, W).
-    The error map has shape (B, H, W): average only over RGB, keeping each pixel.
-    Return raw values before display scaling or clipping.
-    &quot;&quot;&quot;
-    # STUDENT IMPLEMENTATION: use the equations in Section 1.4.
-    v_pred = predict_velocity(x_t, t, condition)
-    v_gt = clean_image - epsilon
-
-    predicted_update = (1 - t) * v_pred
-    ground_truth_update = (1 - t) * v_gt
-
-    diff = predicted_update - ground_truth_update
-    error_map = diff.square().mean(dim=1).sqrt()
-
-    return predicted_update, ground_truth_update, error_map</code>
-</pre>
-</details>
 <p>The updates use one shared signed display scale, with zero at middle gray. The heatmaps use one shared linear scale across all three times. These display mappings do not change the raw errors.</p>
 <figure class="result-figure ">
 <a class="image-link" href="../assets/images/project3/part_a/velocity_0.25.png" target="_blank" rel="noopener">
@@ -245,49 +194,6 @@ def velocity_diagnostics(x_t, t, clean_image, epsilon, condition, predict_veloci
 <h2 class="display-6 fw-bold mb-4">Euler Sampling</h2>
 <p>Instead of extrapolating all the way to the endpoint in one step, I repeatedly take a small step and ask the model for a new velocity. Starting at t = 0.50 with h = 0.02 takes 25 updates to reach t = 1.</p>
 <div class="formula">x_next = xₜ + Δt × vθ(xₜ, t, c)</div>
-<details class="code-block">
-<summary>Euler integration, saved states, and the final step</summary>
-<pre>
-<code>@torch.inference_mode()
-def euler_sample(x_start, t_start, step_size, velocity):
-    t_start = float(t_start)
-    step_size = float(step_size)
-
-    if not math.isfinite(t_start) or not 0 &lt;= t_start &lt;= 1:
-      raise ValueError(&quot;t start must be in [0, 1]&quot;)
-
-    if not math.isfinite(step_size) or step_size &lt;= 0:
-      raise ValueError(&quot;step size must be positive and finite&quot;)
-
-    x = x_start.detach().float().clone()
-    states = [(t_start, x.detach().cpu().clone())]
-
-    if t_start == 1:
-      return x, states
-
-    # avoid extra step from floating point roundoff
-    n_steps = max(1, math.ceil((1 - t_start) / step_size - 1e-12))
-
-    t = t_start
-
-    for i in range(n_steps):
-      next_t = min(1.0, t_start + (i + 1) * step_size)
-
-      if i == n_steps - 1:
-        next_t = 1.0
-
-      dt = next_t - t
-
-      v = velocity(x, t)
-      x = x + dt * v
-      t = next_t
-
-      if (i + 1) % 5 == 0 or i == n_steps - 1:
-        states.append((t, x.detach().cpu().clone()))
-
-    return x, states</code>
-</pre>
-</details>
 <figure class="result-figure ">
 <a class="image-link" href="../assets/images/project3/part_a/trajectory.png" target="_blank" rel="noopener">
 <img src="../assets/images/project3/part_a/display/trajectory.webp" width="1320" height="880" alt="Initial state and every fifth update: t = 0.50, 0.60, 0.70, 0.80, 0.90, and 1.00." class="comparison-frame" loading="lazy">
@@ -369,10 +275,9 @@ def euler_sample(x_start, t_start, step_size, velocity):
 <figcaption class="figure-caption mt-2">Seed 727 · ordinary conditional sampling</figcaption>
 </figure>
 </div>
-<!-- REFLECTION A1.6: replace this aside with your own paragraph before submission. -->
 <aside class="author-note">
-<strong>Your observation · What does the generic prompt generate?</strong>
-<p>Compare the five seeds. Which subjects recur, and which results look incomplete or unusual? Write two or three sentences describing the range you actually see; five samples are not enough to establish a general model bias.</p>
+<strong>Observation: What does the generic prompt generate?</strong>
+<p>The generic prompt of "a high quality photo" outputs mainly portraits. This is true even with the default seed. Seed 724 is the outlier, and seems to be an image of someone holding a menu or pamphlet of some kind, with illegible text on it. I think it is also worth mentioning that seed 727, although heavily distorted/artifacted, still has a human silhouette. Maybe the prompt leans towards a photographic style that focuses more on the shape and layout of the person instead of the finer details like facial features. However, these are just my observations and I think the sample size is too small to make a generalised claim.</p>
 </aside>
 </div>
 </div>
@@ -386,20 +291,6 @@ def euler_sample(x_start, t_start, step_size, velocity):
 <h2 class="display-6 fw-bold mb-4">Classifier-Free Guidance</h2>
 <p>I evaluate the same image and time twice: once with the text prompt and once with the empty prompt. CFG pushes the prediction farther in the conditional direction. In this notebook’s convention, w = 0 is ordinary conditional sampling.</p>
 <div class="formula">v_cfg = v_c + w(v_c − v_u) &nbsp; · &nbsp; w = 7</div>
-<details class="code-block">
-<summary>Guided velocity</summary>
-<pre>
-<code>def cfg_velocity(x, t, condition, w, predict_velocity, null_condition=&#x27;&#x27;):
-    v_c = predict_velocity(x, t, condition)
-
-    if w == 0:
-      return v_c
-
-    v_u = predict_velocity(x, t, null_condition)
-
-    return v_c + w * (v_c - v_u)</code>
-</pre>
-</details>
 <div class="sample-grid">
 <figure class="result-figure ">
 <a class="image-link" href="../assets/images/project3/part_a/cfg_0.png" target="_blank" rel="noopener">
@@ -433,10 +324,9 @@ def euler_sample(x_start, t_start, step_size, velocity):
 </figure>
 </div>
 <p>These use the same five initial noises as Section 1.6, making it possible to compare each seed before and after guidance. The w = 0 equivalence assertion also passes in the notebook.</p>
-<!-- REFLECTION A2.1: replace this aside with your own paragraph before submission. -->
 <aside class="author-note">
-<strong>Your observation · How did guidance change the results?</strong>
-<p>Compare the same seed in Sections 1.6 and 2.1. Pick one example where quality changed, then discuss whether the five guided outputs seem more or less varied. Support your comparison with a visible detail.</p>
+<strong>Observation: How did guidance change the results?</strong>
+<p>Using the CFG produced more consistent portrait style results across the same seeds. The difference is clear for seeds 724, where it went from some menu with illegible text to a portrait of a man. The distortions from 1.6 in seed 727 are also reduced substantially. The guided outputs also have clearer facial features. They also have more consistency to their form.</p>
 </aside>
 </div>
 </div>
@@ -449,20 +339,6 @@ def euler_sample(x_start, t_start, step_size, velocity):
 <p class="text-secondary fw-semibold mb-2">Part A · 3.1</p>
 <h2 class="display-6 fw-bold mb-4">Image-to-Image Editing</h2>
 <p>I interpolate an input image with noise at a chosen starting time, then denoise from there using the generic photo prompt and CFG. Smaller starting times retain less of the input and give the model more room to change it.</p>
-<details class="code-block">
-<summary>Editing from a chosen starting time</summary>
-<pre>
-<code>def edit(image, noise, t_start, condition, predict_velocity, w=7, step_size=0.02):
-    x_start = interpolate(image, noise, t_start)
-
-    def edit_velocity(x, t):
-      return cfg_velocity(x, t, condition, w, predict_velocity)
-
-    final, _ = euler_sample(x_start, t_start, step_size, edit_velocity)
-
-    return final</code>
-</pre>
-</details>
 <p>Every comparison includes the original followed by starting times 0.02, 0.04, 0.06, 0.10, 0.14, 0.25, and 0.50. I reuse the same noise seed within the sweep.</p>
 <h3 class="h4 mt-5">Campanile and my two test images</h3>
 <figure class="result-figure ">
@@ -531,10 +407,12 @@ def euler_sample(x_start, t_start, step_size, velocity):
 </a>
 <figcaption class="figure-caption mt-2">Cat · prompt: <q>a digital painting of a sphinx</q>.</figcaption>
 </figure>
-<!-- REFLECTION A3.2: replace this aside with your own paragraph before submission. -->
+
 <aside class="author-note">
-<strong>Your observation · Where is the best balance?</strong>
-<p>Choose one sweep and a starting time. What part of the original survives, and what part follows the prompt? Explain why that setting is a useful compromise for your intended edit. Also confirm the provenance of your test photos, web image, and drawings in the companion guide.</p>
+<strong>Observation: Where is the best balance?</strong>
+<p>The text prompts seem to have a lot more strength/influence at the smaller starting times. For the Campernile, t=0.02 to t=0.06 clearly show a cargo ship and water, while from t=0.14 onwards the structure of the tower is more preserved.</p>
+<p>The landscape to cat also shows the same tradeoff dramatically. Small starting times produce very close-up cat faces (albeit a bit distorted), with t=0.10 being a good intermediate results where the mountains and water provide structure for the cat's face. From t=0.25 onwards, the cat is missing and the original scenery dominates.</p>
+<p>For the cat to sphinx, the useful immediate results are around t=0.10 to t=0.14. The output image retains the sitting pose from the cat and the background colours, while incorporating sphinx-like details and features. At t=0.50, although there are a lot of distortions, the cat heavily dominates.</p>
 </aside>
 </div>
 </div>
@@ -547,27 +425,6 @@ def euler_sample(x_start, t_start, step_size, velocity):
 <p class="text-secondary fw-semibold mb-2">Part A · 3.3</p>
 <h2 class="display-6 fw-bold mb-4">Visual Anagrams</h2>
 <p>I predict one guided velocity in the normal orientation and another in a 180°-rotated orientation. I rotate the second prediction back and average them before taking the Euler step. Both spatial axes are flipped; this is a rotation rather than a mirror reflection.</p>
-<details class="code-block">
-<summary>Rotation and the combined velocity</summary>
-<pre>
-<code>def rotate180(x):
-    return torch.flip(x, (-2, -1))
-
-def visual_anagrams(noise, condition_a, condition_b, predict_velocity, w=7, step_size=0.02):
-
-  def anagram_velocity(x, t):
-    v_a = cfg_velocity(x, t, condition_a, w, predict_velocity)
-
-    v_b_rotated = cfg_velocity(rotate180(x), t, condition_b, w, predict_velocity)
-    v_b = rotate180(v_b_rotated)
-
-    return (v_a + v_b) / 2
-
-  final, _ = euler_sample(noise, 0, step_size, anagram_velocity)
-
-  return final</code>
-</pre>
-</details>
 <div class="illusion-grid">
 <article class="illusion-card result-card">
 <div class="illusion-stage">
@@ -640,27 +497,6 @@ def visual_anagrams(noise, condition_a, condition_b, predict_velocity, w=7, step
 <h2 class="display-6 fw-bold mb-4">Hybrid Images</h2>
 <p>Instead of combining different orientations, I combine frequency bands of the guided velocity predictions. The distant prompt supplies low frequencies, while the close prompt supplies high frequencies. This happens at every Euler step, rather than blending two finished images afterward.</p>
 <div class="formula">v = lowpass(v_distant) + v_close − lowpass(v_close)</div>
-<details class="code-block">
-<summary>Combining low and high frequencies</summary>
-<pre>
-<code>def lowpass(x, sigma=16.0):
-    kernel = 2 * round(16.5 * x.shape[-1] / 64) + 1
-    return gaussian_blur(x, [kernel, kernel], [sigma, sigma])
-
-def make_hybrids(noise, condition_a, condition_b, predict_velocity, w=7, step_size=0.02):
-
-    def hybrid_velocity(x, t):
-      v_a = cfg_velocity(x, t, condition_a, w, predict_velocity)
-
-      v_b = cfg_velocity(x, t, condition_b, w, predict_velocity)
-
-      return lowpass(v_a) + v_b - lowpass(v_b)
-
-    final, _ = euler_sample(noise, 0, step_size, hybrid_velocity)
-
-    return final</code>
-</pre>
-</details>
 <p>The Gaussian low-pass uses σ = 16 and a 265 × 265 kernel at 512 × 512 resolution. Hovering shrinks the displayed image to one eighth of its width, simulating a farther view.</p>
 <div class="illusion-grid">
 <article class="illusion-card result-card">
@@ -783,51 +619,7 @@ def make_hybrids(noise, condition_a, condition_b, predict_velocity, w=7, step_si
 <h2 class="display-6 fw-bold mb-4">Building the UNet</h2>
 <p>The UNet encodes the image through downsampling blocks, then upsamples it back to the input resolution. Skip connections concatenate encoder features with decoder features at matching spatial resolutions.</p>
 <div class="formula">28 × 28 × D → 14 × 14 × D → 7 × 7 × 2D<br>→ 1 × 1 × 2D → 7 × 7 × 2D → 14 × 14 × D → 28 × 28 × D → 28 × 28 × 1</div>
-<p>The blocks use convolutions, batch normalization, and GELU. The output layer predicts one grayscale channel.</p>
-<details class="code-block">
-<summary>My unconditional UNet implementation</summary>
-<pre>
-<code>class UnconditionalUNet(nn.Module):
-    def __init__(
-        self,
-        in_channels: int,
-        num_hiddens: int,
-    ):
-        super().__init__()
-        self.in_channels = in_channels
-        self.num_hiddens = num_hiddens
-        D = num_hiddens
-
-        self.conv_in = ConvBlock(in_channels, D)
-        self.down1 = DownBlock(D, D)
-        self.down2 = DownBlock(D, 2 * D)
-
-        self.flatten = Flatten()
-        self.unflatten = Unflatten(2 * D)
-
-        self.up1 = UpBlock(4 * D, D)
-        self.up2 = UpBlock(2 * D, D)
-
-        self.conv_out = ConvBlock(2 * D, D)
-        self.out = nn.Conv2d(D, in_channels, 3, 1, 1)
-
-    def forward(self, x: torch.Tensor) -&gt; torch.Tensor:
-        assert x.shape[-2:] == (28, 28), &quot;Expect input shape to be (28, 28).&quot;
-        h0 = self.conv_in(x)
-        h1 = self.down1(h0)
-        h2 = self.down2(h1)
-
-        u = self.unflatten(self.flatten(h2))
-
-        u = self.up1(torch.cat((u, h2), dim=1))
-        u = self.up2(torch.cat((u, h1), dim=1))
-
-        u = torch.cat((u, h0), dim=1)
-
-        return self.out(self.conv_out(u))
-        # ===== end of code ====</code>
-</pre>
-</details>
+<p>The blocks use convolutions, batch normalization, and GELU. The output layer predicts one grayscale channel. The downloadable notebook contains all of the simple and composed blocks.</p>
 </div>
 </div>
 </div>
@@ -846,22 +638,6 @@ def make_hybrids(noise, condition_a, condition_b, predict_velocity, w=7, step_si
 </a>
 <figcaption class="figure-caption mt-2">The same test digit and noise tensor, with σ = 0, 0.2, 0.4, 0.5, 0.6, 0.8, and 1.0.</figcaption>
 </figure>
-<details class="code-block">
-<summary>Visualizing the noise levels</summary>
-<pre>
-<code># Visualize images at different noisy level
-sigmas = [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0]
-
-sweep_clean = test_dataset[0][0].unsqueeze(0).to(device)
-
-sweep_epsilon = torch.randn(sweep_clean.shape, generator=torch.Generator().manual_seed(SEED)).to(device)
-
-noisy_images = torch.cat([sweep_clean + sigma * sweep_epsilon for sigma in sigmas])
-
-show_grid(noisy_images, &quot;noisy input: sigma=&quot; + str(sigmas), &quot;noise_levels.png&quot;, nrow=7)
-# ===== end of code ====</code>
-</pre>
-</details>
 </div>
 </div>
 </div>
@@ -874,37 +650,6 @@ show_grid(noisy_images, &quot;noisy input: sigma=&quot; + str(sigmas), &quot;noi
 <h2 class="display-6 fw-bold mb-4">Training the Single-Step Denoiser</h2>
 <p>I train a D = 128 UNet for five epochs to reconstruct clean digits from inputs with σ = 0.5. Each batch receives freshly sampled noise, so the model does not see exactly the same corrupted images in every epoch.</p>
 <div class="formula">loss = mean((Dθ(x + 0.5ε) − x)²)</div>
-<details class="code-block">
-<summary>Training loop and epoch checkpoint</summary>
-<pre>
-<code># The training loops
-train_losses = []
-for epoch in range(num_epochs):
-    for i, (images, _) in enumerate(tqdm(train_loader)):
-        if epoch == 0 and i == 0:
-            denoise_states = {}
-        # This runs before epoch 2&#x27;s first forward pass: epoch 1 is complete.
-        if epoch == 1 and i == 0:
-            denoise_states[1] = {
-                name: tensor.detach().cpu().clone()
-                for name, tensor in model.state_dict().items()
-            }
-
-        model.train()
-        images = images.to(device)
-        noise = torch.randn_like(images)
-        noisy_images = images + noise_level * noise
-
-        outputs = model(noisy_images)
-
-        loss = criterion(outputs, images)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        train_losses.append(loss.item())</code>
-</pre>
-</details>
 <figure class="result-figure ">
 <a class="image-link" href="../assets/images/project3/part_b/denoise_loss.png" target="_blank" rel="noopener">
 <img src="../assets/images/project3/part_b/display/denoise_loss.webp" width="960" height="360" alt="Training MSE over optimizer steps. The lighter line is the raw batch loss; the darker line is a 100-step moving average." class="comparison-frame" loading="lazy">
@@ -999,111 +744,6 @@ for epoch in range(num_epochs):
 <h2 class="display-6 fw-bold mb-4">Adding Time Conditioning</h2>
 <p>For flow matching, the model needs to know where it is along the path from noise to a digit. I embed the scalar time t using two fully connected blocks and use those embeddings to modulate the decoder features.</p>
 <div class="formula">xₜ = (1 − t)x₀ + tx₁<br>target velocity = x₁ − x₀<br>loss = mean((uθ(xₜ, t) − (x₁ − x₀))²)</div>
-<details class="code-block">
-<summary>Time embeddings and the time-conditioned UNet</summary>
-<pre>
-<code>class FCBlock(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int):
-        super().__init__()
-        self.net = nn.Sequential(nn.Linear(in_channels, out_channels), nn.GELU(), nn.Linear(out_channels, out_channels))
-
-    def forward(self, x: torch.Tensor) -&gt; torch.Tensor:
-        return self.net(x)
-
-
-class TimeConditionalUNet(nn.Module):
-    def __init__(
-        self,
-        in_channels: int,
-        num_classes: int,
-        num_hiddens: int,
-    ):
-        super().__init__()
-        self.in_channels = in_channels
-        self.num_hiddens = num_hiddens
-        D = num_hiddens
-        self.conv_in = ConvBlock(in_channels, D)
-        self.down1 = DownBlock(D, D)
-        self.down2 = DownBlock(D, 2 * D)
-        self.flatten = Flatten()
-        self.unflatten = Unflatten(2 * D)
-        self.up1 = UpBlock(4 * D, D)
-        self.up2 = UpBlock(2 * D, D)
-        self.conv_out = ConvBlock(2 * D, D)
-        self.out = nn.Conv2d(D, in_channels, 3, 1, 1)
-
-        self.fc1_t = FCBlock(1, 2 * num_hiddens)
-        self.fc2_t = FCBlock(1, num_hiddens)
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        t: torch.Tensor,
-    ) -&gt; torch.Tensor:
-        &quot;&quot;&quot;
-        Args:
-            x: (N, C, H, W) input tensor.
-            t: (N,) normalized time tensor.
-
-        Returns:
-            (N, C, H, W) output tensor.
-        &quot;&quot;&quot;
-        assert x.shape[-2:] == (28, 28), &quot;Expect input shape to be (28, 28).&quot;
-        h0 = self.conv_in(x)
-        h1 = self.down1(h0)
-        h2 = self.down2(h1)
-
-        u = self.unflatten(self.flatten(h2))
-
-        t = t.to(device=x.device, dtype=x.dtype).reshape(x.shape[0], 1)
-
-        t1 = self.fc1_t(t)[:, :, None, None]
-        t2 = self.fc2_t(t)[:, :, None, None]
-
-        u = u * t1
-        u = self.up1(torch.cat((u, h2), dim=1))
-
-        u = u * t2
-        u = self.up2(torch.cat((u, h1), dim=1))
-
-        u = torch.cat((u, h0), dim=1)
-
-        return self.out(self.conv_out(u))
-        # ===== end of code ====</code>
-</pre>
-</details>
-<details class="code-block">
-<summary>The flow-matching training objective</summary>
-<pre>
-<code>def time_fm_forward(
-    unet: TimeConditionalUNet,
-    x_1: torch.Tensor,
-    num_ts: int,
-) -&gt; torch.Tensor:
-    &quot;&quot;&quot;Algorithm 1
-
-    Args:
-        unet: TimeConditionalUNet
-        x_1: (N, C, H, W) input tensor.
-        num_ts: int, number of timesteps.
-    Returns:
-        (,) loss.
-    &quot;&quot;&quot;
-    unet.train()
-    x_0 = torch.randn_like(x_1)
-
-    t = torch.rand(x_1.shape[0], device=x_1.device, dtype=x_1.dtype)
-
-    t_image = t[:, None, None, None]
-
-    x_t = (1 - t_image) * x_0 + t_image * x_1
-
-    target_velocity = x_1 - x_0
-    predicted_velocity = unet(x_t, t)
-
-    return F.mse_loss(predicted_velocity, target_velocity)</code>
-</pre>
-</details>
 <p>Time is sampled continuously in [0, 1] during training. The <code>num_ts</code> argument sets the sampling resolution in the surrounding interface; this training function does not quantize the random training times.</p>
 </div>
 </div>
@@ -1122,46 +762,6 @@ class TimeConditionalUNet(nn.Module):
 </a>
 <figcaption class="figure-caption mt-2">Time-conditioned flow training loss over all ten epochs.</figcaption>
 </figure>
-<details class="code-block">
-<summary>Training configuration, loop, and checkpoints</summary>
-<pre>
-<code># Feel free to use code from part 1.2.1
-# as they should be very similar
-torch.manual_seed(SEED)
-
-time_num_epochs = 10
-time_train_loader = make_loader(batch_size=64)
-time_unet = TimeConditionalUNet(1, 10, 64).to(device)
-time_optimizer = torch.optim.Adam(time_unet.parameters(), lr=1e-2)
-time_scheduler = torch.optim.lr_scheduler.ExponentialLR(time_optimizer, gamma=0.1 ** (1.0 / time_num_epochs))
-time_train_losses = []
-time_states = {}
-
-for epoch in range(time_num_epochs):
-    time_unet.train()
-    for images, _ in tqdm(time_train_loader):
-        images = images.to(device)
-        time_optimizer.zero_grad()
-        loss = time_fm_forward(time_unet, images, num_ts=50)
-        loss.backward()
-        time_optimizer.step()
-        time_train_losses.append(loss.item())
-
-    time_scheduler.step()
-    print(f&#x27;Time flow: finished epoch {epoch + 1}&#x27;, flush=True)
-    if epoch + 1 in (1, 5, 10):
-        time_states[epoch + 1] = {
-            name: tensor.detach().cpu().clone()
-            for name, tensor in time_unet.state_dict().items()
-        }
-        torch.save(time_states[epoch + 1], OUT / f&#x27;time_flow_epoch{epoch + 1}.pt&#x27;)
-
-loss_plot(time_train_losses, &#x27;time_flow&#x27;)
-np.save(OUT / &#x27;time_flow_losses.npy&#x27;, np.asarray(time_train_losses))
-
-# ===== end of code ====</code>
-</pre>
-</details>
 </div>
 </div>
 </div>
@@ -1173,42 +773,6 @@ np.save(OUT / &#x27;time_flow_losses.npy&#x27;, np.asarray(time_train_losses))
 <p class="text-secondary fw-semibold mb-2">Part B · 2.3</p>
 <h2 class="display-6 fw-bold mb-4">Sampling with Time Conditioning</h2>
 <p>At test time, I start with Gaussian noise and take 50 Euler updates from t = 0 to t = 1. I reuse the same seed at each checkpoint so the panels compare how the model changes during training.</p>
-<details class="code-block">
-<summary>Sampling 40 digits with Euler integration</summary>
-<pre>
-<code>@torch.inference_mode()
-def time_fm_sample(
-    unet: TimeConditionalUNet,
-    img_wh: tuple[int, int],
-    num_ts: int,
-    seed: int = 0,
-) -&gt; torch.Tensor:
-    &quot;&quot;&quot;Algorithm 2
-
-    Args:
-        unet: TimeConditionalUNet
-        img_wh: (H, W) output image width and height.
-        num_ts: int, number of timesteps.
-        seed: int, random seed.
-
-    Returns:
-        (N, C, H, W) final sample.
-    &quot;&quot;&quot;
-    unet.eval()
-    parameter = next(unet.parameters())
-
-    x = torch.randn((40, unet.in_channels, *img_wh), generator=torch.Generator().manual_seed(seed), dtype=parameter.dtype).to(parameter.device)
-
-    dt = 1.0 / num_ts
-
-    for i in range(num_ts):
-        t = torch.full((x.shape[0],), i/num_ts, device=x.device, dtype=x.dtype)
-        x = x + dt * unet(x, t)
-
-    return x
-    # ===== end of code ====</code>
-</pre>
-</details>
 <div class="epoch-grid">
 <figure class="result-figure ">
 <a class="image-link" href="../assets/images/project3/part_b/time_flow_epoch1.png" target="_blank" rel="noopener">
@@ -1242,124 +806,6 @@ def time_fm_sample(
 <h2 class="display-6 fw-bold mb-4">Adding Class Conditioning</h2>
 <p>I encode the digit label as a one-hot vector and add two class-embedding blocks. During training, I drop the class condition on 10% of examples by setting that vector to zero. This lets the same network provide conditional and unconditional velocity predictions.</p>
 <div class="formula">decoder feature = class_embedding × feature + time_embedding</div>
-<details class="code-block">
-<summary>Class and time embeddings in the UNet</summary>
-<pre>
-<code>class ClassConditionalUNet(nn.Module):
-    def __init__(
-        self,
-        in_channels: int,
-        num_classes: int,
-        num_hiddens: int,
-    ):
-        super().__init__()
-        self.in_channels = in_channels
-        self.num_hiddens = num_hiddens
-        D = num_hiddens
-        self.conv_in = ConvBlock(in_channels, D)
-        self.down1 = DownBlock(D, D)
-        self.down2 = DownBlock(D, 2 * D)
-        self.flatten = Flatten()
-        self.unflatten = Unflatten(2 * D)
-        self.up1 = UpBlock(4 * D, D)
-        self.up2 = UpBlock(2 * D, D)
-        self.conv_out = ConvBlock(2 * D, D)
-        self.out = nn.Conv2d(D, in_channels, 3, 1, 1)
-
-        self.fc1_t = FCBlock(1, 2 * num_hiddens)
-        self.fc2_t = FCBlock(1, num_hiddens)
-
-        self.num_classes = num_classes
-        self.fc1_c = FCBlock(num_classes, 2*num_hiddens)
-        self.fc2_c = FCBlock(num_classes, num_hiddens)
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        c: torch.Tensor,
-        t: torch.Tensor,
-        mask: Optional[torch.Tensor] = None,
-    ) -&gt; torch.Tensor:
-        &quot;&quot;&quot;
-        Args:
-            x: (N, C, H, W) input tensor.
-            c: (N,) int64 condition tensor.
-            t: (N,) normalized time tensor.
-            mask: (N,) mask tensor. If not None, mask out condition when mask == 0.
-
-        Returns:
-            (N, C, H, W) output tensor.
-        &quot;&quot;&quot;
-        assert x.shape[-2:] == (28, 28), &quot;Expect input shape to be (28, 28).&quot;
-        h0 = self.conv_in(x)
-        h1 = self.down1(h0)
-        h2 = self.down2(h1)
-
-        u = self.unflatten(self.flatten(h2))
-
-        t = t.to(device=x.device, dtype=x.dtype).reshape(x.shape[0], 1)
-
-        c = F.one_hot(c.to(device=x.device, dtype=torch.long), self.num_classes).to(x.dtype)
-
-        if mask is not None:
-          c = c * mask.to(device=x.device, dtype=x.dtype).reshape(-1, 1)
-
-        t1 = self.fc1_t(t)[:, :, None, None]
-        t2 = self.fc2_t(t)[:, :, None, None]
-
-        c1 = self.fc1_c(c)[:, :, None, None]
-        c2 = self.fc2_c(c)[:, :, None, None]
-
-        u = c1 * u + t1
-        u = self.up1(torch.cat((u, h2), dim=1))
-
-        u = c2 * u + t2
-        u = self.up2(torch.cat((u, h1), dim=1))
-
-        u = torch.cat((u, h0), dim=1)
-        return self.out(self.conv_out(u))
-        # ===== end of code ====</code>
-</pre>
-</details>
-<details class="code-block">
-<summary>Class dropout and the training objective</summary>
-<pre>
-<code>def class_fm_forward(
-    unet: ClassConditionalUNet,
-    x_1: torch.Tensor,
-    c: torch.Tensor,
-    p_uncond: float,
-    num_ts: int,
-) -&gt; torch.Tensor:
-    &quot;&quot;&quot;Algorithm 3
-
-    Args:
-        unet: ClassConditionalUNet
-        x_1: (N, C, H, W) input tensor.
-        c: (N,) int64 condition tensor.
-        p_uncond: float, probability of unconditioning the condition.
-        num_ts: int, number of timesteps.
-
-    Returns:
-        (,) loss.
-    &quot;&quot;&quot;
-    unet.train()
-    x_0 = torch.randn_like(x_1)
-
-    t = torch.rand(x_1.shape[0], device=x_1.device, dtype=x_1.dtype)
-
-    t_image = t[:, None, None, None]
-
-    x_t = (1 - t_image) * x_0 + t_image * x_1
-
-    mask = (torch.rand(x_1.shape[0], device=x_1.device) &gt;= p_uncond).to(x_1.dtype)
-
-    predicted_velocity = unet(x_t, c, t, mask)
-
-    return F.mse_loss(predicted_velocity, x_1 - x_0)
-    # ===== end of code ====</code>
-</pre>
-</details>
 </div>
 </div>
 </div>
@@ -1377,49 +823,6 @@ def time_fm_sample(
 </a>
 <figcaption class="figure-caption mt-2">Class-conditioned flow training loss over all ten epochs.</figcaption>
 </figure>
-<details class="code-block">
-<summary>Training with class conditioning</summary>
-<pre>
-<code># Train a fresh class-conditioned D=64 UNet for 10 epochs, batch size 64,
-# Adam initial lr=1e-2, class dropout probability .1, exponential gamma=.1**(1/10).
-# Save checkpoints at epochs 1,5,10. Then train an independent no-scheduler
-# comparison; choose/document a constant learning rate and compare results.
-torch.manual_seed(SEED)
-class_num_epochs = 10
-class_train_loader = make_loader(batch_size=64)
-class_unet = ClassConditionalUNet(1, 10, 64).to(device)
-class_optimizer = torch.optim.Adam(class_unet.parameters(), lr=1e-2)
-class_scheduler = torch.optim.lr_scheduler.ExponentialLR(
-    class_optimizer, gamma=0.1 ** (1.0 / class_num_epochs))
-class_train_losses = []
-class_states = {}
-
-for epoch in range(class_num_epochs):
-    class_unet.train()
-    for images, labels in tqdm(class_train_loader):
-        images = images.to(device)
-        labels = labels.to(device)
-        class_optimizer.zero_grad()
-        loss = class_fm_forward(class_unet, images, labels, p_uncond=0.1, num_ts=300)
-        loss.backward()
-        class_optimizer.step()
-        class_train_losses.append(loss.item())
-
-    class_scheduler.step()
-    print(f&#x27;Class flow: finished epoch {epoch + 1}&#x27;, flush=True)
-    if epoch + 1 in (1, 5, 10):
-        class_states[epoch + 1] = {
-            name: tensor.detach().cpu().clone()
-            for name, tensor in class_unet.state_dict().items()
-        }
-        torch.save(class_states[epoch + 1], OUT / f&#x27;class_flow_epoch{epoch + 1}.pt&#x27;)
-
-loss_plot(class_train_losses, &#x27;class_flow&#x27;)
-np.save(OUT / &#x27;class_flow_losses.npy&#x27;, np.asarray(class_train_losses))
-del class_unet, class_optimizer, class_scheduler
-if device.type == &#x27;cuda&#x27;: torch.cuda.empty_cache()</code>
-</pre>
-</details>
 </div>
 </div>
 </div>
@@ -1433,60 +836,6 @@ if device.type == &#x27;cuda&#x27;: torch.cuda.empty_cache()</code>
 <p>I generate four instances of each digit, using 300 Euler steps and guidance scale γ = 5. The columns are labeled 0 through 9, and each row contains one sample for each class.</p>
 <div class="formula">v = v_unconditional + γ(v_conditional − v_unconditional) &nbsp; · &nbsp; γ = 5</div>
 <p>This guidance convention differs from Part A’s <code>v_c + w(v_c − v_u)</code>. Here, γ = 1 would give the ordinary conditional velocity.</p>
-<details class="code-block">
-<summary>Guided class-conditioned sampling</summary>
-<pre>
-<code>@torch.inference_mode()
-def class_fm_sample(
-    unet: ClassConditionalUNet,
-    c: torch.Tensor,
-    img_wh: tuple[int, int],
-    num_ts: int,
-    guidance_scale: float = 5.0,
-    seed: int = 0,
-) -&gt; torch.Tensor:
-    &quot;&quot;&quot;Algorithm 4
-
-    Args:
-        unet: ClassConditionalUNet
-        c: (N,) int64 condition tensor. Only for class-conditional
-        img_wh: (H, W) output image width and height.
-        num_ts: int, number of timesteps.
-        guidance_scale: float, CFG scale.
-        seed: int, random seed.
-
-    Returns:
-        (N, C, H, W) final sample.
-        (N, T_animation, C, H, W) caches.
-    &quot;&quot;&quot;
-    unet.eval()
-    parameter = next(unet.parameters())
-
-    c = c.to(device=parameter.device, dtype=torch.long)
-    x = torch.randn((len(c), unet.in_channels, *img_wh), generator=torch.Generator().manual_seed(seed), dtype=parameter.dtype).to(parameter.device)
-
-    keep = torch.ones(len(c), device=x.device, dtype=x.dtype)
-    drop = torch.zeros_like(keep)
-
-    dt = 1.0 / num_ts
-    caches = [x.detach().cpu().clone()]
-
-    for i in range(num_ts):
-        t = torch.full((len(c),), i / num_ts, device=x.device,dtype=x.dtype)
-
-        v_u = unet(x, c, t, drop)
-        v_c = unet(x, c, t, keep)
-
-        v = v_u + guidance_scale * (v_c - v_u)
-        x = x + dt * v
-
-        if (i + 1) % 10 == 0 or i == num_ts - 1:
-            caches.append(x.detach().cpu().clone())
-
-    return x, torch.stack(caches, dim=1)
-    # ===== end of code ====</code>
-</pre>
-</details>
 <div class="epoch-grid">
 <figure class="result-figure ">
 <a class="image-link" href="../assets/images/project3/part_b/class_flow_epoch1.png" target="_blank" rel="noopener">
@@ -1535,45 +884,6 @@ def class_fm_sample(
 <figcaption class="figure-caption mt-2">No scheduler · constant LR 0.001 · epoch 10</figcaption>
 </figure>
 </div>
-<details class="code-block">
-<summary>The independent no-scheduler run</summary>
-<pre>
-<code># independent no-scheduler experiment, learning rate is based on proposed starting point
-CONSTANT_LR = 1e-3
-torch.manual_seed(SEED)
-no_scheduler_num_epochs = 10
-no_scheduler_loader = make_loader(batch_size=64)
-no_scheduler_unet = ClassConditionalUNet(1, 10, 64).to(device)
-no_scheduler_optimizer = torch.optim.Adam(no_scheduler_unet.parameters(), lr=CONSTANT_LR)
-no_scheduler_train_losses = []
-no_scheduler_states = {}
-
-for epoch in range(no_scheduler_num_epochs):
-    no_scheduler_unet.train()
-    for images, labels in tqdm(no_scheduler_loader):
-        images = images.to(device)
-        labels = labels.to(device)
-        no_scheduler_optimizer.zero_grad()
-        loss = class_fm_forward(no_scheduler_unet, images, labels, p_uncond=0.1, num_ts=300)
-        loss.backward()
-        no_scheduler_optimizer.step()
-        no_scheduler_train_losses.append(loss.item())
-
-    print(f&#x27;No-scheduler flow: finished epoch {epoch + 1}&#x27;, flush=True)
-    if epoch + 1 in (1, 5, 10):
-        no_scheduler_states[epoch + 1] = {
-            name: tensor.detach().cpu().clone()
-            for name, tensor in no_scheduler_unet.state_dict().items()
-        }
-        torch.save(no_scheduler_states[epoch + 1],
-                    OUT / f&#x27;class_flow_no_scheduler_epoch{epoch + 1}.pt&#x27;)
-
-loss_plot(no_scheduler_train_losses, &#x27;class_flow_no_scheduler&#x27;)
-np.save(OUT / &#x27;class_flow_no_scheduler_losses.npy&#x27;, np.asarray(no_scheduler_train_losses))
-del no_scheduler_unet, no_scheduler_optimizer
-if device.type == &#x27;cuda&#x27;: torch.cuda.empty_cache()</code>
-</pre>
-</details>
 <!-- REFLECTION B2.6: replace this aside with your own paragraph before submission. -->
 <aside class="author-note">
 <strong>Your observation · Did the simpler schedule preserve quality?</strong>
@@ -1606,6 +916,8 @@ if device.type == &#x27;cuda&#x27;: torch.cuda.empty_cache()</code>
 <h2 class="display-6 fw-bold mb-4">Notebooks and Course Pages</h2>
 <p>The completed notebooks contain the implementations, settings, and recorded outputs used on this page. The course pages define the deliverable structure.</p>
 <div class="d-flex flex-wrap gap-2">
+<a class="btn btn-outline-dark" href="../assets/code/project3/Copy_of_parta_completed.ipynb" download>Part A notebook</a>
+<a class="btn btn-outline-dark" href="../assets/code/project3/Copy_of_partb_completed.ipynb" download>Part B notebook</a>
 </div>
 <p class="mt-4">
 <a href="https://cal-cs180.github.io/fa26/hw/proj3-flow/parta.html" target="_blank" rel="noopener">Part A assignment</a> · <a href="https://cal-cs180.github.io/fa26/hw/proj3-flow/partb.html" target="_blank" rel="noopener">Part B assignment</a>
