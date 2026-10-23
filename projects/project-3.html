@@ -411,7 +411,7 @@
 <aside class="author-note">
 <strong>Observation: Where is the best balance?</strong>
 <p>The text prompts seem to have a lot more strength/influence at the smaller starting times. For the Campernile, t=0.02 to t=0.06 clearly show a cargo ship and water, while from t=0.14 onwards the structure of the tower is more preserved.</p>
-<p>The landscape to cat also shows the same tradeoff dramatically. Small starting times produce very close-up cat faces (albeit a bit distorted), with t=0.10 being a good intermediate results where the mountains and water provide structure for the cat's face. From t=0.25 onwards, the cat is missing and the original scenery dominates.</p>
+<p>The landscape to cat also shows the same tradeoff. Small starting times produce very close-up cat faces (albeit a bit distorted), with t=0.10 being a good intermediate results where the mountains and water provide structure for the cat's face. From t=0.25 onwards, the cat is missing and the original scenery dominates.</p>
 <p>For the cat to sphinx, the useful immediate results are around t=0.10 to t=0.14. The output image retains the sitting pose from the cat and the background colours, while incorporating sphinx-like details and features. At t=0.50, although there are a lot of distortions, the cat heavily dominates.</p>
 </aside>
 </div>
@@ -480,10 +480,10 @@
 <figcaption class="figure-caption mt-2">Wizard / cathedral · both saved orientations.</figcaption>
 </figure>
 </details>
-<!-- REFLECTION A3.3: replace this aside with your own paragraph before submission. -->
 <aside class="author-note">
-<strong>Your observation · Which illusion reads more clearly?</strong>
-<p>Look at each image upright and rotated. Name a shared shape that supports both interpretations, then identify anything that makes one view harder to recognize. You do not need to describe both as equally successful.</p>
+<strong>Observation: Which illusion reads more clearly?</strong>
+<p>The wizard-cathedral pair illusion reads more clearly to me. Upright, I can clearly see the image as a man with greying hair and a beard wearing a robe, with his hands showing. When rotated upside down, the pointed ends of the robe become the towers and architectural details of the cathedral. THe two subjects share a symmetric structure, which I think helps both interpretations fit into the same image.</p>
+<p>The waterfall-dancer pair also shows the illusion, but the waterfall does not look distinct enough to me, while the flipped image shows the dancer clearly.</p>
 </aside>
 </div>
 </div>
@@ -538,10 +538,11 @@
 </div>
 </article>
 </div>
-<!-- REFLECTION A3.4: replace this aside with your own paragraph before submission. -->
 <aside class="author-note">
-<strong>Your observation · Does the interpretation change with size?</strong>
-<p>For each hybrid, say what you can identify in the large and small views. Point to the broad shape that carries the distant prompt and the fine details that carry the close prompt. If one interpretation is weak, explain that limitation.</p>
+<strong>Observation: Does the interpretation change with size?</strong>
+<p>In the flowers–heart hybrid, the flowers are easy to recognize at the larger display size. When the image becomes smaller, the individual petals become harder to see and the broader arrangement together with the use of red becomes more suggestive of a heart. However the flowers are still visible, making the change more subtle.</p>
+<p>The foliage-woman hybrid is not as strong. The leaves and branches, while clear at the larger size, do not show what I expect to be complete foliage. Meanwhile, the woman's silhouette is visible but I cannot really make out facial features that show the "intense gaze".</p>
+<p>The results show that combining frequency bands does not automatically guarantee a clear change in perception. It also took me many iterations before I managed to arrive at images that I felt like were good enough.</p>
 </aside>
 </div>
 </div>
@@ -727,10 +728,10 @@
 <figcaption class="figure-caption mt-2">The average of the training digits, shown as a reference.</figcaption>
 </figure>
 <p>Under squared error, the optimal predictor is the conditional mean E[x | z]. Since z is independent of the target digit in this experiment, this reduces to E[x]: the average training image. This explains why minimizing the loss can lead to similar blurry outputs rather than distinct sampled digits.</p>
-<!-- REFLECTION B1.2.3: replace this aside with your own paragraph before submission. -->
 <aside class="author-note">
-<strong>Your observation · Describe the averaging you see</strong>
-<p>Compare the epoch 1 and epoch 5 grids with the training-set mean. Describe their repeated strokes, blur, and variation across noise inputs. Then connect those visible patterns to the MSE explanation above; do not call the average image a correctly generated digit.</p>
+<strong>Observation: Describe the averaging you see</strong>
+<p>The pure-noise model produces very similar blurry, loop-like shapes for different noise inputs. This behavior appears after both one and five epochs, and the outputs resemble the displayed training-set mean rather than a diverse collection of individual digits.</p>
+<p>I think this happens because the input noise is independent of the target digit. There is no information within the input that differentiates or identifies which digit to construct. Under MSE loss, the model learns what an average output should look like instead of different digits.</p>
 </aside>
 </div>
 </div>
@@ -884,10 +885,10 @@
 <figcaption class="figure-caption mt-2">No scheduler · constant LR 0.001 · epoch 10</figcaption>
 </figure>
 </div>
-<!-- REFLECTION B2.6: replace this aside with your own paragraph before submission. -->
 <aside class="author-note">
-<strong>Your observation · Did the simpler schedule preserve quality?</strong>
-<p>Compare the epoch 10 class-conditioned grids with and without the scheduler, using the same columns and rows. Are the requested classes recognizable? Compare stroke clarity, malformed digits, and variation within each class. State what the visual evidence supports; there is no saved quantitative image-quality score.</p>
+<strong>Observation: Did the simpler scheduler preserve quality?</strong>
+<p>I removed the exponential scheduler and used a constant Adam learning rate of 0.001 instead of starting at 0.01. The no-scheduler run produces recognizable digits early in training, and its epoch-ten samples appear broadly comparable to those from the scheduled run.</p>
+<p>Both final grids generally follow the requested classes, with some differences in individual appearances. The smaller constant learning rate seems to preserve visual quality without the scheduler.</p>
 </aside>
 </div>
 </div>
@@ -899,10 +900,9 @@
 <div class="col-lg-10">
 <p class="text-secondary fw-semibold mb-2">Reflection</p>
 <h2 class="display-6 fw-bold mb-4">What I Learned</h2>
-<!-- REFLECTION Reflection: replace this aside with your own paragraph before submission. -->
 <aside class="author-note">
-<strong>Your observation · Your main takeaway</strong>
-<p>Choose one concrete experiment: a failed edit at low starting time, a successful shared shape in an anagram, the pure-noise averaging result, or the difference between time-only and class-conditioned sampling. Explain what you expected, what the result showed, and what you would change next.</p>
+<strong>Main takeaway</strong>
+<p>The editing and illusion experiments also showed me that a plausible image is not necessarily a successful result for the intended task. An edit needs to balance the prompt with the original structure, and an illusion needs both interpretations to remain recognizable. It is not enough to just look at the data and numbers, the actual visual perception of the images are also key in determining the success of the task.</p>
 </aside>
 </div>
 </div>
