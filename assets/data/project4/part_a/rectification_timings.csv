@@ -1,0 +1,5 @@
+image,method,width,height,median_seconds
+rectify1,nearest,1056,756,0.11284319986589253
+rectify1,bilinear,1056,756,0.2849685000255704
+rectify2,nearest,740,1050,0.11913860007189214
+rectify2,bilinear,740,1050,0.31312820012681186

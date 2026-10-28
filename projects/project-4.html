@@ -1,0 +1,2052 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CS180 · Project 4 · Image Warping and Mosaicing</title>
+    <meta
+      name="description"
+      content="Kenneth Poh’s CS180 Project 4: homographies, image rectification, feather-blended mosaics, and cylindrical projection."
+    />
+    <link rel="stylesheet" href="../assets/bootstrap.min.css" />
+    <link rel="stylesheet" href="../styles.css" />
+    <link rel="stylesheet" href="../assets/project4.css" />
+  </head>
+  <body class="project4">
+    <a class="skip-link" href="#overview">Skip to content</a>
+    <nav class="navbar bg-body-tertiary border-bottom sticky-top">
+      <div class="container">
+        <a class="navbar-brand fw-semibold" href="../index.html">CS180</a
+        ><a class="nav-link" href="../index.html#projects">Projects</a>
+      </div>
+    </nav>
+    <main>
+      <header class="bg-body-tertiary py-5">
+        <div class="container py-4">
+          <div class="row">
+            <div class="col-lg-9">
+              <a
+                class="link-secondary text-decoration-none"
+                href="../index.html#projects"
+                >← Back to projects</a
+              >
+              <p class="text-uppercase text-secondary fw-semibold mt-4 mb-2">
+                CS180 Project 4
+              </p>
+              <h1 class="display-4 fw-bold">Image Warping and Mosaicing</h1>
+              <p class="lead text-secondary project-summary mb-4">
+                My attempt at straightening out perspective and stitching
+                overlapping photographs into a wider view.
+              </p>
+              <div
+                class="project-jump-links d-flex flex-wrap gap-2"
+                aria-label="Jump to a project section"
+              >
+                <a class="btn btn-outline-secondary" href="#overview"
+                  >Overview</a
+                ><a class="btn btn-outline-secondary" href="#part-a"
+                  >Project 4A</a
+                ><a class="btn btn-outline-secondary" href="#a-1">Photographs</a
+                ><a class="btn btn-outline-secondary" href="#a-2"
+                  >Homographies</a
+                ><a class="btn btn-outline-secondary" href="#a-3"
+                  >Rectification</a
+                ><a class="btn btn-outline-secondary" href="#a-4">Mosaics</a
+                ><a class="btn btn-outline-secondary" href="#a-5"
+                  >Cylindrical projection</a
+                ><a class="btn btn-outline-secondary" href="#part-b"
+                  >Project 4B</a
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+      <section id="overview" class="project-section section-padding">
+        <div class="container">
+          <div class="row justify-content-center">
+            <div class="col-lg-10">
+              <p class="text-secondary fw-semibold mb-2 part-label">Overview</p>
+              <h2 class="display-6 fw-bold mb-4">
+                Putting the Pieces Together
+              </h2>
+              <p>
+                My attempt at straightening out perspective and turning a few
+                overlapping photographs into a wider view. Project 4A starts
+                with manually selected correspondences, uses them to recover a
+                homography, and then warps and blends the images together.
+              </p>
+              <p>
+                I use three pairs of photographs for the mosaics: the mailroom,
+                I-House, and the statue and stairs. For rectification, I use a
+                Kyogre card and an illustrated print. I also try a cylindrical
+                projection on the mailroom pair.
+              </p>
+              <div class="method-card">
+                <strong>Reading the results</strong>
+                <p class="mb-0 mt-2">
+                  Click any image to open the original photograph or
+                  full-resolution export. The matrices and equations describe
+                  the method.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section
+        id="part-a"
+        class="project-section section-padding bg-body-tertiary part-banner"
+      >
+        <div class="container">
+          <div class="row justify-content-center">
+            <div class="col-lg-10">
+              <p class="text-secondary fw-semibold mb-2 part-label">
+                Project 4A
+              </p>
+              <h2 class="display-6 fw-bold mb-4">
+                Image Warping and Mosaicing
+              </h2>
+              <p>
+                The pipeline is: select matching points → estimate the
+                homography → inverse-warp the images → blend them on a shared
+                canvas. I implement the homography solver, nearest neighbor
+                sampler, bilinear sampler, and feather blending in the notebook.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="a-1" class="project-section section-padding">
+        <div class="container">
+          <div class="row justify-content-center">
+            <div class="col-lg-10">
+              <p class="text-secondary fw-semibold mb-2 part-label">
+                Project 4A · A.1
+              </p>
+              <h2 class="display-6 fw-bold mb-4">
+                Shoot and Digitize Pictures
+              </h2>
+              <p>
+                I use two overlapping photographs for each scene. In every pair,
+                the image on the right is the reference, and I map the left
+                image into its coordinates. Before selecting points, I apply the
+                image orientation and resize each photograph so that its longest
+                side is at most 1400 pixels. The mosaic inputs are 1400 × 1050.
+              </p>
+              <p>
+                The shared details give me landmarks to match: the mailboxes and
+                signs in the mailroom, windows on the I-House facade, and
+                corners around the statue and steps. The projective model
+                assumes that the camera rotates around approximately the same
+                center, or that the matched scene is approximately planar.
+              </p>
+              <h3 class="h4">Mailroom</h3>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/scene1_sources.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/scene1_sources.webp"
+                    width="1600"
+                    height="800"
+                    alt="Mailroom: left source image and right reference image."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  Mailroom: left source image and right reference image.
+                </figcaption>
+              </figure>
+              <h3 class="h4">I-House</h3>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/scene2_sources.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/scene2_sources.webp"
+                    width="1600"
+                    height="800"
+                    alt="I-House: left source image and right reference image."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  I-House: left source image and right reference image.
+                </figcaption>
+              </figure>
+              <h3 class="h4">Statue and stairs</h3>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/scene3_sources.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/scene3_sources.webp"
+                    width="1600"
+                    height="800"
+                    alt="Statue and stairs: left source image and right reference image."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  Statue and stairs: left source image and right reference
+                  image.
+                </figcaption>
+              </figure>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section
+        id="a-2"
+        class="project-section section-padding bg-body-tertiary"
+      >
+        <div class="container">
+          <div class="row justify-content-center">
+            <div class="col-lg-10">
+              <p class="text-secondary fw-semibold mb-2 part-label">
+                Project 4A · A.2
+              </p>
+              <h2 class="display-6 fw-bold mb-4">Recover Homographies</h2>
+              <p>
+                A homography maps a point (x, y) in the source image to (u, v)
+                in the reference image. It has eight unknowns after fixing the
+                bottom-right entry to 1. Each point pair gives me two equations,
+                so four pairs are the minimum. I select 12 pairs per scene,
+                giving an overdetermined system with 24 equations and 8
+                unknowns.
+              </p>
+              <div
+                class="equation"
+                aria-label="Projective transformation equations"
+              >
+                <span class="line"
+                  >u = (h₁₁x + h₁₂y + h₁₃) / (h₃₁x + h₃₂y + 1)</span
+                ><span class="line"
+                  >v = (h₂₁x + h₂₂y + h₂₃) / (h₃₁x + h₃₂y + 1)</span
+                >
+              </div>
+              <p>
+                Rearranging gives the following two rows of A for each
+                correspondence. I stack these rows for all 12 matches and solve
+                Ah ≈ b using least squares.
+              </p>
+              <div class="math-scroll">
+                <table
+                  class="matrix"
+                  aria-label="Two rows contributed to A by one correspondence"
+                >
+                  <tbody>
+                    <tr>
+                      <td>x</td>
+                      <td>y</td>
+                      <td>1</td>
+                      <td>0</td>
+                      <td>0</td>
+                      <td>0</td>
+                      <td>−ux</td>
+                      <td>−uy</td>
+                    </tr>
+                    <tr>
+                      <td>0</td>
+                      <td>0</td>
+                      <td>0</td>
+                      <td>x</td>
+                      <td>y</td>
+                      <td>1</td>
+                      <td>−vx</td>
+                      <td>−vy</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="equation">
+                <span class="line"
+                  >h = [h₁₁, h₁₂, h₁₃, h₂₁, h₂₂, h₂₃, h₃₁, h₃₂]ᵀ</span
+                ><span class="line"
+                  >bᵢ = [u, v]ᵀ &nbsp; · &nbsp; h* = arg min ‖Ah − b‖²</span
+                >
+              </div>
+              <p>
+                For numerical stability, I center each point set and scale its
+                mean distance from the origin to √2 before fitting. After
+                solving the normalized system, I undo the normalization with H =
+                T<sub>dst</sub>⁻¹ H<sub>n</sub> T<sub>src</sub>, then rescale so
+                that h₃₃ = 1. The tables below show the original
+                pixel-coordinate systems for readability.
+              </p>
+              <p>
+                I measure reprojection error by transforming each source point
+                and taking its Euclidean distance from the clicked reference
+                point. These are fitting errors on the selected matches, rather
+                than errors measured on new points.
+              </p>
+              <h3 class="h4">Mailroom: correspondences and recovered H</h3>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/scene1_image0_to_reference_correspondences.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/scene1_image0_to_reference_correspondences.webp"
+                    width="2000"
+                    height="857"
+                    alt="Mailroom: the same numbered landmark is selected in both images. All 12 matches are used in the fit."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  Mailroom: the same numbered landmark is selected in both
+                  images. All 12 matches are used in the fit.
+                </figcaption>
+              </figure>
+              <div class="math-scroll">
+                <table
+                  class="matrix"
+                  aria-label="Mailroom homography from left source to right reference"
+                >
+                  <tbody>
+                    <tr>
+                      <td>3.7627368</td>
+                      <td>0.0909535</td>
+                      <td>-2745.4894</td>
+                    </tr>
+                    <tr>
+                      <td>0.9419703</td>
+                      <td>3.0229831</td>
+                      <td>-956.3895</td>
+                    </tr>
+                    <tr>
+                      <td>0.0019492</td>
+                      <td>0.0000068</td>
+                      <td>1.0000000</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p>
+                Mean reprojection error: <strong>0.532 px</strong>. Maximum
+                error: <strong>1.386 px</strong>, in the resized reference
+                image.
+              </p>
+              <details>
+                <summary>View the full 24 × 8 pixel-coordinate system</summary>
+                <p class="small text-secondary mt-3">
+                  Each pair of rows comes from one match. The last column is b;
+                  displayed values are rounded to four decimal places. The
+                  fitting itself uses normalized coordinates.
+                </p>
+                <div
+                  class="table-responsive"
+                  tabindex="0"
+                  role="region"
+                  aria-label="scene1 numerical system"
+                >
+                  <table class="table system-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Row</th>
+                        <th scope="col">h₁₁</th>
+                        <th scope="col">h₁₂</th>
+                        <th scope="col">h₁₃</th>
+                        <th scope="col">h₂₁</th>
+                        <th scope="col">h₂₂</th>
+                        <th scope="col">h₂₃</th>
+                        <th scope="col">h₃₁</th>
+                        <th scope="col">h₃₂</th>
+                        <th scope="col">b</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <th scope="row">1</th>
+                        <td>741.9117</td>
+                        <td>472.5913</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-27012.5587</td>
+                        <td>-17206.7633</td>
+                        <td>36.4094</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">2</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>741.9117</td>
+                        <td>472.5913</td>
+                        <td>1.0000</td>
+                        <td>-354497.1639</td>
+                        <td>-225811.5882</td>
+                        <td>477.8158</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">3</th>
+                        <td>795.8855</td>
+                        <td>568.0833</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-94789.5319</td>
+                        <td>-67658.4189</td>
+                        <td>119.0995</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">4</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>795.8855</td>
+                        <td>568.0833</td>
+                        <td>1.0000</td>
+                        <td>-470777.9467</td>
+                        <td>-336029.6321</td>
+                        <td>591.5147</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">5</th>
+                        <td>835.0298</td>
+                        <td>353.6419</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-135951.9416</td>
+                        <td>-57576.7519</td>
+                        <td>162.8109</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">6</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>835.0298</td>
+                        <td>353.6419</td>
+                        <td>1.0000</td>
+                        <td>-285656.1176</td>
+                        <td>-120977.6867</td>
+                        <td>342.0909</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">7</th>
+                        <td>1249.1184</td>
+                        <td>338.1227</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-721213.9862</td>
+                        <td>-195224.7230</td>
+                        <td>577.3784</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">8</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1249.1184</td>
+                        <td>338.1227</td>
+                        <td>1.0000</td>
+                        <td>-451018.2585</td>
+                        <td>-122085.7003</td>
+                        <td>361.0693</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">9</th>
+                        <td>984.1851</td>
+                        <td>331.8644</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-332604.4173</td>
+                        <td>-112153.2528</td>
+                        <td>337.9490</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">10</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>984.1851</td>
+                        <td>331.8644</td>
+                        <td>1.0000</td>
+                        <td>-328085.5255</td>
+                        <td>-110629.4954</td>
+                        <td>333.3575</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">11</th>
+                        <td>1079.1022</td>
+                        <td>219.2156</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-463962.1224</td>
+                        <td>-94252.1860</td>
+                        <td>429.9520</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">12</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1079.1022</td>
+                        <td>219.2156</td>
+                        <td>1.0000</td>
+                        <td>-250877.0364</td>
+                        <td>-50964.7403</td>
+                        <td>232.4868</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">13</th>
+                        <td>1272.2866</td>
+                        <td>401.7484</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-759152.4318</td>
+                        <td>-239716.6180</td>
+                        <td>596.6835</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">14</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1272.2866</td>
+                        <td>401.7484</td>
+                        <td>1.0000</td>
+                        <td>-532816.9022</td>
+                        <td>-168246.9296</td>
+                        <td>418.7868</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">15</th>
+                        <td>1269.1575</td>
+                        <td>593.6685</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-760543.0819</td>
+                        <td>-355756.0757</td>
+                        <td>599.2504</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">16</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1269.1575</td>
+                        <td>593.6685</td>
+                        <td>1.0000</td>
+                        <td>-742174.4380</td>
+                        <td>-347163.8514</td>
+                        <td>584.7773</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">17</th>
+                        <td>873.7176</td>
+                        <td>726.5654</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-196271.9839</td>
+                        <td>-163215.6919</td>
+                        <td>224.6401</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">18</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>873.7176</td>
+                        <td>726.5654</td>
+                        <td>1.0000</td>
+                        <td>-665565.2533</td>
+                        <td>-553470.1955</td>
+                        <td>761.7624</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">19</th>
+                        <td>1184.6850</td>
+                        <td>751.5336</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-636868.7604</td>
+                        <td>-404013.0744</td>
+                        <td>537.5849</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">20</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1184.6850</td>
+                        <td>751.5336</td>
+                        <td>1.0000</td>
+                        <td>-869907.0104</td>
+                        <td>-551846.5146</td>
+                        <td>734.2939</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">21</th>
+                        <td>829.2194</td>
+                        <td>856.2016</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-142094.2948</td>
+                        <td>-146717.9416</td>
+                        <td>171.3591</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">22</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>829.2194</td>
+                        <td>856.2016</td>
+                        <td>1.0000</td>
+                        <td>-763075.4515</td>
+                        <td>-787905.3815</td>
+                        <td>920.2335</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">23</th>
+                        <td>1236.7105</td>
+                        <td>907.6688</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-720627.7731</td>
+                        <td>-528896.1198</td>
+                        <td>582.6972</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">24</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1236.7105</td>
+                        <td>907.6688</td>
+                        <td>1.0000</td>
+                        <td>-1067827.9450</td>
+                        <td>-783719.5259</td>
+                        <td>863.4421</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+              <h3 class="h4">I-House: correspondences and recovered H</h3>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/scene2_image0_to_reference_correspondences.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/scene2_image0_to_reference_correspondences.webp"
+                    width="2000"
+                    height="857"
+                    alt="I-House: the same numbered landmark is selected in both images. All 12 matches are used in the fit."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  I-House: the same numbered landmark is selected in both
+                  images. All 12 matches are used in the fit.
+                </figcaption>
+              </figure>
+              <div class="math-scroll">
+                <table
+                  class="matrix"
+                  aria-label="I-House homography from left source to right reference"
+                >
+                  <tbody>
+                    <tr>
+                      <td>2.4319949</td>
+                      <td>-0.1631124</td>
+                      <td>-1323.6078</td>
+                    </tr>
+                    <tr>
+                      <td>0.6699310</td>
+                      <td>1.9397790</td>
+                      <td>-627.1018</td>
+                    </tr>
+                    <tr>
+                      <td>0.0010202</td>
+                      <td>-0.0000461</td>
+                      <td>1.0000000</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p>
+                Mean reprojection error: <strong>0.704 px</strong>. Maximum
+                error: <strong>1.786 px</strong>, in the resized reference
+                image.
+              </p>
+              <details>
+                <summary>View the full 24 × 8 pixel-coordinate system</summary>
+                <p class="small text-secondary mt-3">
+                  Each pair of rows comes from one match. The last column is b;
+                  displayed values are rounded to four decimal places. The
+                  fitting itself uses normalized coordinates.
+                </p>
+                <div
+                  class="table-responsive"
+                  tabindex="0"
+                  role="region"
+                  aria-label="scene2 numerical system"
+                >
+                  <table class="table system-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Row</th>
+                        <th scope="col">h₁₁</th>
+                        <th scope="col">h₁₂</th>
+                        <th scope="col">h₁₃</th>
+                        <th scope="col">h₂₁</th>
+                        <th scope="col">h₂₂</th>
+                        <th scope="col">h₂₃</th>
+                        <th scope="col">h₃₁</th>
+                        <th scope="col">h₃₂</th>
+                        <th scope="col">b</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <th scope="row">1</th>
+                        <td>671.3616</td>
+                        <td>354.8029</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-100539.0528</td>
+                        <td>-53133.1323</td>
+                        <td>149.7539</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">2</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>671.3616</td>
+                        <td>354.8029</td>
+                        <td>1.0000</td>
+                        <td>-205764.6480</td>
+                        <td>-108743.0204</td>
+                        <td>306.4885</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">3</th>
+                        <td>1237.2010</td>
+                        <td>318.8994</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-899429.1015</td>
+                        <td>-231835.7354</td>
+                        <td>726.9870</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">4</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1237.2010</td>
+                        <td>318.8994</td>
+                        <td>1.0000</td>
+                        <td>-451353.5975</td>
+                        <td>-116340.3463</td>
+                        <td>364.8183</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">5</th>
+                        <td>661.6417</td>
+                        <td>446.1766</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-85261.7304</td>
+                        <td>-57496.0599</td>
+                        <td>128.8639</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">6</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>661.6417</td>
+                        <td>446.1766</td>
+                        <td>1.0000</td>
+                        <td>-272661.8388</td>
+                        <td>-183868.9098</td>
+                        <td>412.0990</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">7</th>
+                        <td>1255.2679</td>
+                        <td>422.6068</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-920578.7698</td>
+                        <td>-309928.1199</td>
+                        <td>733.3723</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">8</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1255.2679</td>
+                        <td>422.6068</td>
+                        <td>1.0000</td>
+                        <td>-574589.2249</td>
+                        <td>-193444.9979</td>
+                        <td>457.7423</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">9</th>
+                        <td>597.8294</td>
+                        <td>502.6724</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-18023.6458</td>
+                        <td>-15154.8069</td>
+                        <td>30.1485</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">10</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>597.8294</td>
+                        <td>502.6724</td>
+                        <td>1.0000</td>
+                        <td>-282560.9737</td>
+                        <td>-237585.5050</td>
+                        <td>472.6449</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">11</th>
+                        <td>894.8042</td>
+                        <td>496.8718</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-365534.6247</td>
+                        <td>-202976.0982</td>
+                        <td>408.5080</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">12</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>894.8042</td>
+                        <td>496.8718</td>
+                        <td>1.0000</td>
+                        <td>-443001.7235</td>
+                        <td>-245992.4594</td>
+                        <td>495.0823</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">13</th>
+                        <td>1034.5721</td>
+                        <td>493.7280</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-567576.9515</td>
+                        <td>-270864.2652</td>
+                        <td>548.6103</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">14</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1034.5721</td>
+                        <td>493.7280</td>
+                        <td>1.0000</td>
+                        <td>-520201.1930</td>
+                        <td>-248255.1723</td>
+                        <td>502.8177</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">15</th>
+                        <td>1346.2683</td>
+                        <td>485.6536</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-1071155.6774</td>
+                        <td>-386409.2836</td>
+                        <td>795.6480</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">16</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1346.2683</td>
+                        <td>485.6536</td>
+                        <td>1.0000</td>
+                        <td>-696133.4543</td>
+                        <td>-251123.5622</td>
+                        <td>517.0837</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">17</th>
+                        <td>813.6120</td>
+                        <td>724.6993</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-243119.6150</td>
+                        <td>-216551.1378</td>
+                        <td>298.8152</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">18</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>813.6120</td>
+                        <td>724.6993</td>
+                        <td>1.0000</td>
+                        <td>-599024.6747</td>
+                        <td>-533562.3573</td>
+                        <td>736.2534</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">19</th>
+                        <td>1091.7964</td>
+                        <td>734.2839</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-636095.9016</td>
+                        <td>-427804.0915</td>
+                        <td>582.6140</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">20</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1091.7964</td>
+                        <td>734.2839</td>
+                        <td>1.0000</td>
+                        <td>-802790.2604</td>
+                        <td>-539913.8041</td>
+                        <td>735.2930</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">21</th>
+                        <td>664.1466</td>
+                        <td>856.1433</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-61501.3348</td>
+                        <td>-79280.6168</td>
+                        <td>92.6020</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">22</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>664.1466</td>
+                        <td>856.1433</td>
+                        <td>1.0000</td>
+                        <td>-599021.2946</td>
+                        <td>-772191.0086</td>
+                        <td>901.9414</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">23</th>
+                        <td>1279.3852</td>
+                        <td>900.6544</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-927261.3153</td>
+                        <td>-652768.2484</td>
+                        <td>724.7710</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">24</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1279.3852</td>
+                        <td>900.6544</td>
+                        <td>1.0000</td>
+                        <td>-1118066.6499</td>
+                        <td>-787090.3235</td>
+                        <td>873.9093</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+              <h3 class="h4">
+                Statue and stairs: correspondences and recovered H
+              </h3>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/scene3_image0_to_reference_correspondences.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/scene3_image0_to_reference_correspondences.webp"
+                    width="2000"
+                    height="857"
+                    alt="Statue and stairs: the same numbered landmark is selected in both images. All 12 matches are used in the fit."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  Statue and stairs: the same numbered landmark is selected in
+                  both images. All 12 matches are used in the fit.
+                </figcaption>
+              </figure>
+              <div class="math-scroll">
+                <table
+                  class="matrix"
+                  aria-label="Statue and stairs homography from left source to right reference"
+                >
+                  <tbody>
+                    <tr>
+                      <td>2.2703194</td>
+                      <td>-0.1084627</td>
+                      <td>-1185.9304</td>
+                    </tr>
+                    <tr>
+                      <td>0.5771106</td>
+                      <td>1.7968726</td>
+                      <td>-480.7309</td>
+                    </tr>
+                    <tr>
+                      <td>0.0009401</td>
+                      <td>-0.0000537</td>
+                      <td>1.0000000</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p>
+                Mean reprojection error: <strong>0.704 px</strong>. Maximum
+                error: <strong>1.688 px</strong>, in the resized reference
+                image.
+              </p>
+              <details>
+                <summary>View the full 24 × 8 pixel-coordinate system</summary>
+                <p class="small text-secondary mt-3">
+                  Each pair of rows comes from one match. The last column is b;
+                  displayed values are rounded to four decimal places. The
+                  fitting itself uses normalized coordinates.
+                </p>
+                <div
+                  class="table-responsive"
+                  tabindex="0"
+                  role="region"
+                  aria-label="scene3 numerical system"
+                >
+                  <table class="table system-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Row</th>
+                        <th scope="col">h₁₁</th>
+                        <th scope="col">h₁₂</th>
+                        <th scope="col">h₁₃</th>
+                        <th scope="col">h₂₁</th>
+                        <th scope="col">h₂₂</th>
+                        <th scope="col">h₂₃</th>
+                        <th scope="col">h₃₁</th>
+                        <th scope="col">h₃₂</th>
+                        <th scope="col">b</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <th scope="row">1</th>
+                        <td>641.6103</td>
+                        <td>605.1147</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-82836.3908</td>
+                        <td>-78124.5543</td>
+                        <td>129.1070</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">2</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>641.6103</td>
+                        <td>605.1147</td>
+                        <td>1.0000</td>
+                        <td>-399573.3998</td>
+                        <td>-376845.1699</td>
+                        <td>622.7665</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">3</th>
+                        <td>808.6037</td>
+                        <td>583.2480</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-274695.7543</td>
+                        <td>-198138.7554</td>
+                        <td>339.7162</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">4</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>808.6037</td>
+                        <td>583.2480</td>
+                        <td>1.0000</td>
+                        <td>-483459.1508</td>
+                        <td>-348720.3311</td>
+                        <td>597.8938</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">5</th>
+                        <td>820.0285</td>
+                        <td>613.3342</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-287689.2209</td>
+                        <td>-215175.0290</td>
+                        <td>350.8283</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">6</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>820.0285</td>
+                        <td>613.3342</td>
+                        <td>1.0000</td>
+                        <td>-516532.1603</td>
+                        <td>-386336.4162</td>
+                        <td>629.8954</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">7</th>
+                        <td>1083.5549</td>
+                        <td>475.8241</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-665328.3508</td>
+                        <td>-292167.2725</td>
+                        <td>614.0237</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">8</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1083.5549</td>
+                        <td>475.8241</td>
+                        <td>1.0000</td>
+                        <td>-544194.9391</td>
+                        <td>-238973.6600</td>
+                        <td>502.2311</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">9</th>
+                        <td>1117.5642</td>
+                        <td>604.8858</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-712107.5604</td>
+                        <td>-385430.8348</td>
+                        <td>637.1961</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">10</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1117.5642</td>
+                        <td>604.8858</td>
+                        <td>1.0000</td>
+                        <td>-692289.8435</td>
+                        <td>-374704.4227</td>
+                        <td>619.4631</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">11</th>
+                        <td>984.3216</td>
+                        <td>622.1863</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-510101.3480</td>
+                        <td>-322433.2931</td>
+                        <td>518.2263</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">12</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>984.3216</td>
+                        <td>622.1863</td>
+                        <td>1.0000</td>
+                        <td>-626915.3175</td>
+                        <td>-396270.9982</td>
+                        <td>636.9009</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">13</th>
+                        <td>1135.4637</td>
+                        <td>724.4360</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-735547.8811</td>
+                        <td>-469286.1242</td>
+                        <td>647.7952</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">14</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1135.4637</td>
+                        <td>724.4360</td>
+                        <td>1.0000</td>
+                        <td>-826351.4305</td>
+                        <td>-527219.6005</td>
+                        <td>727.7656</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">15</th>
+                        <td>1285.6529</td>
+                        <td>558.3575</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-986195.3232</td>
+                        <td>-428303.4032</td>
+                        <td>767.0774</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">16</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1285.6529</td>
+                        <td>558.3575</td>
+                        <td>1.0000</td>
+                        <td>-745676.3841</td>
+                        <td>-323846.3269</td>
+                        <td>579.9982</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">17</th>
+                        <td>1179.0849</td>
+                        <td>842.0492</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-799825.0370</td>
+                        <td>-571198.9185</td>
+                        <td>678.3439</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">18</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1179.0849</td>
+                        <td>842.0492</td>
+                        <td>1.0000</td>
+                        <td>-979370.4678</td>
+                        <td>-699422.1562</td>
+                        <td>830.6191</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">19</th>
+                        <td>1096.5138</td>
+                        <td>862.5086</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-668549.6269</td>
+                        <td>-525875.5494</td>
+                        <td>609.7047</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">20</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>1096.5138</td>
+                        <td>862.5086</td>
+                        <td>1.0000</td>
+                        <td>-940057.3885</td>
+                        <td>-739441.2858</td>
+                        <td>857.3147</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">21</th>
+                        <td>930.7674</td>
+                        <td>941.5759</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-420601.3275</td>
+                        <td>-425485.5305</td>
+                        <td>451.8866</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">22</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>930.7674</td>
+                        <td>941.5759</td>
+                        <td>1.0000</td>
+                        <td>-892541.6310</td>
+                        <td>-902906.2071</td>
+                        <td>958.9309</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">23</th>
+                        <td>651.9147</td>
+                        <td>788.8694</td>
+                        <td>1.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>-87245.2223</td>
+                        <td>-105573.7732</td>
+                        <td>133.8292</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">24</th>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>0.0000</td>
+                        <td>651.9147</td>
+                        <td>788.8694</td>
+                        <td>1.0000</td>
+                        <td>-544258.5163</td>
+                        <td>-658596.8107</td>
+                        <td>834.8616</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+              <p>
+                All three mean fitting errors are below one pixel. This suggests
+                that the selected landmarks are fitted closely, but it does not
+                guarantee that every part of the scene will align. Objects at
+                different depths and small camera translations can still produce
+                parallax.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="a-3" class="project-section section-padding">
+        <div class="container">
+          <div class="row justify-content-center">
+            <div class="col-lg-10">
+              <p class="text-secondary fw-semibold mb-2 part-label">
+                Project 4A · A.3
+              </p>
+              <h2 class="display-6 fw-bold mb-4">Warp and Rectify Images</h2>
+              <p>
+                I use inverse warping so that every output pixel asks where it
+                came from in the original image. I transform the image corners
+                to determine the output bounds, then add a translation to move
+                the canvas into nonnegative coordinates. For each destination
+                pixel, I apply the inverse transform, divide by the homogeneous
+                coordinate, and sample the source image.
+              </p>
+              <div class="equation">
+                <span class="line">[x̃, ỹ, w]ᵀ = (TH)⁻¹ [u, v, 1]ᵀ</span
+                ><span class="line">(x, y) = (x̃ / w, ỹ / w)</span>
+              </div>
+              <p>
+                Nearest neighbor rounds to the closest pixel center. Bilinear
+                interpolation takes a weighted average of the four surrounding
+                pixels. I track valid samples with a separate mask, so an
+                uncovered pixel is different from a valid black pixel. At the
+                image boundary, I clamp the neighboring indices to the last row
+                or column.
+              </p>
+              <div class="equation">
+                <span class="line">a = x − ⌊x⌋, &nbsp; b = y − ⌊y⌋</span
+                ><span class="line">I(x,y) = (1−a)(1−b)I₀₀ + a(1−b)I₁₀</span
+                ><span class="line"
+                  >&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + (1−a)bI₀₁
+                  + abI₁₁</span
+                >
+              </div>
+              <p>
+                For rectification, I click the four corners in top-left,
+                top-right, bottom-right, bottom-left order. I map them to (0,
+                0), (W−1, 0), (W−1, H−1), and (0, H−1). Here the output canvas
+                is the target rectangle itself, so no extra canvas translation
+                is needed.
+              </p>
+              <h3 class="h4">Kyogre card</h3>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/rectify1_corners.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/rectify1_corners.webp"
+                    width="1280"
+                    height="960"
+                    alt="Original photograph with the four selected corners, numbered 0–3."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  Original photograph with the four selected corners, numbered
+                  0–3.
+                </figcaption>
+              </figure>
+              <p>
+                The configured target is 1056 × 756 pixels (width × height). The
+                homography below maps the selected quadrilateral to that
+                rectangle.
+              </p>
+              <div class="math-scroll">
+                <table
+                  class="matrix"
+                  aria-label="Kyogre card rectification homography"
+                >
+                  <tbody>
+                    <tr>
+                      <td>2.9233290</td>
+                      <td>1.5928395</td>
+                      <td>-1507.2646</td>
+                    </tr>
+                    <tr>
+                      <td>0.2831658</td>
+                      <td>4.9200049</td>
+                      <td>-1481.2201</td>
+                    </tr>
+                    <tr>
+                      <td>0.0003751</td>
+                      <td>0.0021784</td>
+                      <td>1.0000000</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/rectify1_comparison.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/rectify1_comparison.webp"
+                    width="2000"
+                    height="800"
+                    alt="Left: original photograph. Middle: nearest neighbor. Right: bilinear interpolation."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  Left: original photograph. Middle: nearest neighbor. Right:
+                  bilinear interpolation.
+                </figcaption>
+              </figure>
+              <div class="detail-grid">
+                <figure class="result-figure">
+                  <a
+                    class="image-link"
+                    href="../assets/images/project4/part_a/details/rectify1_nearest_detail.png"
+                    target="_blank"
+                    rel="noopener"
+                    ><img
+                      class="comparison-frame"
+                      src="../assets/images/project4/part_a/details/rectify1_nearest_detail.png"
+                      width="960"
+                      height="630"
+                      alt="Kyogre card: Nearest neighbor magnified detail"
+                      loading="lazy"
+                  /></a>
+                  <figcaption class="figure-caption mt-2">
+                    Nearest neighbor: the same output region, enlarged 3×
+                    without additional smoothing.
+                  </figcaption>
+                </figure>
+                <figure class="result-figure">
+                  <a
+                    class="image-link"
+                    href="../assets/images/project4/part_a/details/rectify1_bilinear_detail.png"
+                    target="_blank"
+                    rel="noopener"
+                    ><img
+                      class="comparison-frame"
+                      src="../assets/images/project4/part_a/details/rectify1_bilinear_detail.png"
+                      width="960"
+                      height="630"
+                      alt="Kyogre card: Bilinear magnified detail"
+                      loading="lazy"
+                  /></a>
+                  <figcaption class="figure-caption mt-2">
+                    Bilinear: the same output region, enlarged 3× without
+                    additional smoothing.
+                  </figcaption>
+                </figure>
+              </div>
+              <h3 class="h4">Illustrated print</h3>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/rectify2_corners.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/rectify2_corners.webp"
+                    width="1280"
+                    height="960"
+                    alt="Original photograph with the four selected corners, numbered 0–3."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  Original photograph with the four selected corners, numbered
+                  0–3.
+                </figcaption>
+              </figure>
+              <p>
+                The configured target is 740 × 1050 pixels (width × height). The
+                homography below maps the selected quadrilateral to that
+                rectangle.
+              </p>
+              <div class="math-scroll">
+                <table
+                  class="matrix"
+                  aria-label="Illustrated print rectification homography"
+                >
+                  <tbody>
+                    <tr>
+                      <td>2.7155940</td>
+                      <td>0.7048106</td>
+                      <td>-1087.2180</td>
+                    </tr>
+                    <tr>
+                      <td>-0.0264555</td>
+                      <td>4.3651614</td>
+                      <td>-2003.2127</td>
+                    </tr>
+                    <tr>
+                      <td>-0.0000174</td>
+                      <td>0.0018415</td>
+                      <td>1.0000000</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/rectify2_comparison.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/rectify2_comparison.webp"
+                    width="2000"
+                    height="800"
+                    alt="Left: original photograph. Middle: nearest neighbor. Right: bilinear interpolation."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  Left: original photograph. Middle: nearest neighbor. Right:
+                  bilinear interpolation.
+                </figcaption>
+              </figure>
+              <div class="detail-grid">
+                <figure class="result-figure">
+                  <a
+                    class="image-link"
+                    href="../assets/images/project4/part_a/details/rectify2_nearest_detail.png"
+                    target="_blank"
+                    rel="noopener"
+                    ><img
+                      class="comparison-frame"
+                      src="../assets/images/project4/part_a/details/rectify2_nearest_detail.png"
+                      width="810"
+                      height="780"
+                      alt="Illustrated print: Nearest neighbor magnified detail"
+                      loading="lazy"
+                  /></a>
+                  <figcaption class="figure-caption mt-2">
+                    Nearest neighbor: the same output region, enlarged 3×
+                    without additional smoothing.
+                  </figcaption>
+                </figure>
+                <figure class="result-figure">
+                  <a
+                    class="image-link"
+                    href="../assets/images/project4/part_a/details/rectify2_bilinear_detail.png"
+                    target="_blank"
+                    rel="noopener"
+                    ><img
+                      class="comparison-frame"
+                      src="../assets/images/project4/part_a/details/rectify2_bilinear_detail.png"
+                      width="810"
+                      height="780"
+                      alt="Illustrated print: Bilinear magnified detail"
+                      loading="lazy"
+                  /></a>
+                  <figcaption class="figure-caption mt-2">
+                    Bilinear: the same output region, enlarged 3× without
+                    additional smoothing.
+                  </figcaption>
+                </figure>
+              </div>
+              <p>
+                Both methods make the selected edges rectangular. At the scale
+                of the whole image, their results look quite similar. In the
+                enlarged details, nearest neighbor has more stepped edges around
+                the card text and illustration outlines. Bilinear is smoother,
+                although it also softens some fine detail. Neither method can
+                recover detail that was missing from the original photograph.
+              </p>
+              <h3 class="h4">Speed and quality</h3>
+              <div class="table-responsive">
+                <table class="table timings">
+                  <thead>
+                    <tr>
+                      <th scope="col">Example</th>
+                      <th scope="col">Nearest neighbor</th>
+                      <th scope="col">Bilinear</th>
+                      <th scope="col">Bilinear / nearest</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">Kyogre card</th>
+                      <td>0.1128 s</td>
+                      <td>0.2850 s</td>
+                      <td>2.53×</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Illustrated print</th>
+                      <td>0.1191 s</td>
+                      <td>0.3131 s</td>
+                      <td>2.63×</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p>
+                These are the saved median times over three runs, after one
+                warm-up, at the target sizes above. Bilinear takes about 2.5–2.6
+                times as long in this implementation because it samples and
+                combines four neighbors instead of one. I use it for the mosaics
+                to make resampled edges smoother. These timings describe this
+                run, rather than a general benchmark for every implementation.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section
+        id="a-4"
+        class="project-section section-padding bg-body-tertiary"
+      >
+        <div class="container">
+          <div class="row justify-content-center">
+            <div class="col-lg-10">
+              <p class="text-secondary fw-semibold mb-2 part-label">
+                Project 4A · A.4
+              </p>
+              <h2 class="display-6 fw-bold mb-4">Blend Images into a Mosaic</h2>
+              <p>
+                For each mosaic, I keep the right image as the reference and
+                warp the left image into its projection. I transform the corners
+                of both images to find a shared canvas, then apply the same
+                canvas translation to both. I inverse-warp the RGB images and
+                their feather weights using bilinear interpolation.
+              </p>
+              <p>
+                The weight is based on distance to the nearest image edge: it is
+                largest toward the center and falls off toward the boundary. I
+                keep the boundary weight positive so that pixels covered by only
+                one image are still preserved. Invalid samples get zero weight.
+                In the overlap, I add the weighted colors and divide by the sum
+                of the weights.
+              </p>
+              <div class="equation">
+                <span class="line">d(x,y) = min(x+1, W−x, y+1, H−y)</span
+                ><span class="line">w(x,y) = d(x,y) / max(d)</span
+                ><span class="line"
+                  >I<sub>mosaic</sub>(p) = Σᵢ wᵢ(p) Iᵢ(p) / Σᵢ wᵢ(p)</span
+                >
+              </div>
+              <p>
+                This avoids abruptly replacing one photograph with the other.
+                The transparent borders show where neither image covers the
+                canvas; I leave them uncropped so that the shape of the warp is
+                visible.
+              </p>
+              <h3 class="h4">Mailroom</h3>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/scene1_sources.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/scene1_sources.webp"
+                    width="1600"
+                    height="800"
+                    alt="Mailroom: the two source photographs, with the right image used as the reference."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  Mailroom: the two source photographs, with the right image
+                  used as the reference.
+                </figcaption>
+              </figure>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/scene1_mosaic.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/scene1_mosaic.webp"
+                    width="2000"
+                    height="1523"
+                    alt="Mailroom: final bilinear-warped, feather-blended mosaic. Uncovered canvas pixels are transparent."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  Mailroom: final bilinear-warped, feather-blended mosaic.
+                  Uncovered canvas pixels are transparent.
+                </figcaption>
+              </figure>
+              <p>
+                The mailbox grid and central signs join into a wider view
+                without a hard cut through the overlap. The left part stretches
+                noticeably because it is being projected into the right camera’s
+                view. Feathering smooths the transition, but it does not remove
+                that projective stretching.
+              </p>
+              <h3 class="h4">I-House</h3>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/scene2_sources.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/scene2_sources.webp"
+                    width="1600"
+                    height="800"
+                    alt="I-House: the two source photographs, with the right image used as the reference."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  I-House: the two source photographs, with the right image used
+                  as the reference.
+                </figcaption>
+              </figure>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/scene2_mosaic.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/scene2_mosaic.webp"
+                    width="2000"
+                    height="1420"
+                    alt="I-House: final bilinear-warped, feather-blended mosaic. Uncovered canvas pixels are transparent."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  I-House: final bilinear-warped, feather-blended mosaic.
+                  Uncovered canvas pixels are transparent.
+                </figcaption>
+              </figure>
+              <p>
+                The facade and entrance line up into a continuous building,
+                including the windows used for the correspondences. The left
+                wall and railings become stretched toward the edge. The wide
+                outline and sloping borders make the effect of the planar
+                projection especially visible here.
+              </p>
+              <h3 class="h4">Statue and stairs</h3>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/scene3_sources.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/scene3_sources.webp"
+                    width="1600"
+                    height="800"
+                    alt="Statue and stairs: the two source photographs, with the right image used as the reference."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  Statue and stairs: the two source photographs, with the right
+                  image used as the reference.
+                </figcaption>
+              </figure>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/scene3_mosaic.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/scene3_mosaic.webp"
+                    width="2000"
+                    height="1419"
+                    alt="Statue and stairs: final bilinear-warped, feather-blended mosaic. Uncovered canvas pixels are transparent."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  Statue and stairs: final bilinear-warped, feather-blended
+                  mosaic. Uncovered canvas pixels are transparent.
+                </figcaption>
+              </figure>
+              <p>
+                The result extends the view from the road on the left to the
+                steps on the right. The statue, stone wall, and steps remain
+                recognizable across the overlap. The near pavement and railings
+                are useful places to inspect for residual misalignment, since
+                one homography cannot compensate for depth differences if the
+                camera center shifts.
+              </p>
+              <p>
+                Blending and alignment solve different problems. Feathering
+                reduces visible boundaries, but if two features do not land in
+                the same place, averaging can leave a blurred or doubled edge.
+                More accurate correspondences can improve the fit; parallax may
+                require a different scene model or capture setup.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="a-5" class="project-section section-padding">
+        <div class="container">
+          <div class="row justify-content-center">
+            <div class="col-lg-10">
+              <p class="text-secondary fw-semibold mb-2 part-label">
+                Project 4A · A.5
+              </p>
+              <h2 class="display-6 fw-bold mb-4">
+                Trying a Cylindrical Projection
+              </h2>
+              <p>
+                As an extension, I project the mailroom images onto a cylinder
+                instead of a plane. For each output pixel, I form a cylindrical
+                ray, rotate it into each camera’s coordinates, and project it
+                into the original photograph. I then use my bilinear sampler and
+                the same feather blending. Sampling the originals directly
+                avoids an extra image-resampling stage.
+              </p>
+              <div class="equation">
+                <span class="line">θ = u / r, &nbsp; h = v / r</span
+                ><span class="line">panorama ray = [sin θ, h, cos θ]ᵀ</span
+                ><span class="line">camera ray = Cᵢᵀ · panorama ray</span
+                ><span class="line"
+                  >x = fᵢ X / Z + cₓ, &nbsp; y = fᵢ Y / Z + cᵧ</span
+                >
+              </div>
+              <p>
+                The saved effective focal lengths are 932.38 px and 944.17 px at
+                1400 × 1050 input resolution. The cylinder radius is their mean,
+                938.28 px. These are estimates from the 12 selected point pairs,
+                rather than a physical camera calibration. The model assumes
+                centered principal points, square pixels, and an approximately
+                fixed camera center, without radial-distortion correction.
+              </p>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/scene1_mosaic.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/scene1_mosaic.webp"
+                    width="2000"
+                    height="1523"
+                    alt="Planar projection: the mailroom mosaic from A.4, shown again for comparison."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  Planar projection: the mailroom mosaic from A.4, shown again
+                  for comparison.
+                </figcaption>
+              </figure>
+              <figure class="result-figure">
+                <a
+                  class="image-link"
+                  href="../assets/images/project4/part_a/results/mailroom_cylindrical.png"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <img
+                    class="comparison-frame"
+                    src="../assets/images/project4/part_a/display/mailroom_cylindrical.webp"
+                    width="1832"
+                    height="1064"
+                    alt="Cylindrical projection: final mailroom mosaic, 1832 × 1064 pixels."
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+                <figcaption class="figure-caption mt-2">
+                  Cylindrical projection: final mailroom mosaic, 1832 × 1064
+                  pixels.
+                </figcaption>
+              </figure>
+              <p>
+                The cylindrical result spreads the room more evenly across the
+                frame and reduces the strong enlargement of the left side in the
+                planar version. The ceiling and floor boundaries curve instead.
+                Changing the projection changes how the wider view is
+                represented; it does not make every line straight or remove all
+                possible alignment errors.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section
+        id="part-b"
+        class="project-section section-padding part-banner empty-part"
+      >
+        <div class="container">
+          <div class="row justify-content-center">
+            <div class="col-lg-10">
+              <h2 class="display-6 fw-bold mb-4">Project 4B</h2>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <footer class="border-top py-4">
+      <div
+        class="container d-flex flex-wrap justify-content-between gap-3 text-secondary small"
+      >
+        <span>© 2026 Kenneth Poh Ren Kang</span
+        ><a class="link-secondary" href="../index.html#projects"
+          >Back to projects</a
+        >
+      </div>
+    </footer>
+  </body>
+</html>

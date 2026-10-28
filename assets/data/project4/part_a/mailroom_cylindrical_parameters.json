@@ -1,0 +1,55 @@
+{
+  "images": [
+    "photos/mailroom_left.jpg",
+    "photos/mailroom_right.jpg"
+  ],
+  "processed_width_height": [
+    1400,
+    1050
+  ],
+  "effective_focal_px": [
+    932.384943762409,
+    944.166552451171
+  ],
+  "camera_to_panorama": [
+    [
+      [
+        0.946530982837,
+        0.014931232339,
+        -0.322267213395
+      ],
+      [
+        -0.013765156024,
+        0.999887866619,
+        0.005897005063
+      ],
+      [
+        0.322319126036,
+        -0.001145639524,
+        0.94663037586
+      ]
+    ],
+    [
+      [
+        0.946530982837,
+        -0.013765156024,
+        0.322319126036
+      ],
+      [
+        0.014931232339,
+        0.999887866619,
+        -0.001145639524
+      ],
+      [
+        -0.322267213395,
+        0.005897005063,
+        0.94663037586
+      ]
+    ]
+  ],
+  "radius_px": 938.2757481067899,
+  "source": "estimated from the supplied 12 point pairs; not a physical calibration",
+  "training_rms_px": 0.8526238,
+  "leave_one_out_rms_px": 1.1675733,
+  "assumptions": "centered principal points, square pixels, approximate fixed camera center; no radial-distortion model"
+}

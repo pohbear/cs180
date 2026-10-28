@@ -1,0 +1,36 @@
+/* Project 4 additions; the shared portfolio stylesheet stays unchanged. */
+section[id] { scroll-margin-top: 5rem; }
+.skip-link { position: fixed; top: -5rem; left: 1rem; z-index: 2000; padding: .7rem 1rem; background: #fff; }
+.skip-link:focus { top: .5rem; }
+.project4 .method-card { height: auto; min-width: 0; overflow-wrap: anywhere; }
+.project4 .result-figure { margin: 1.75rem 0 2.5rem; }
+.project4 .comparison-frame { display: block; height: auto; max-height: none; }
+.project4 .image-link { background: #eef0f2; }
+.project4 .figure-caption { line-height: 1.55; }
+.project4 p, .project4 li { line-height: 1.75; }
+.project4 .part-label { letter-spacing: .12em; }
+.project4 .part-banner { border-block: 1px solid var(--bs-border-color); }
+.project4 .matrix { display: inline-table; width: auto; margin: .5rem 0; border-inline: 2px solid var(--bs-secondary-color); border-collapse: separate; border-spacing: .75rem .35rem; font-family: var(--bs-font-monospace); font-size: .9rem; white-space: nowrap; }
+.project4 .matrix td { text-align: right; }
+.project4 .math-scroll { overflow-x: auto; max-width: 100%; margin-block: 1rem; padding-bottom: .25rem; }
+.project4 .equation { display: block; padding: 1rem; margin-block: 1rem; background: var(--bs-secondary-bg); border-left: 4px solid var(--bs-secondary-color); overflow-x: auto; font-size: 1rem; }
+.project4 .equation .line { display: block; min-width: max-content; line-height: 1.9; }
+.project4 .system-table { font-family: var(--bs-font-monospace); font-size: .78rem; white-space: nowrap; }
+.project4 .system-table td, .project4 .system-table th { text-align: right; padding: .5rem .65rem; }
+.project4 details { margin-block: 1rem; padding: 1rem; border: 1px solid var(--bs-border-color); border-radius: .75rem; }
+.project4 summary { cursor: pointer; font-weight: 600; }
+.project4 .downloads { display: flex; flex-wrap: wrap; gap: .75rem; margin-block: 1rem 2rem; }
+.project4 h3 { margin-top: 2.75rem; margin-bottom: 1rem; }
+.project4 .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1.25rem; }
+.project4 .detail-grid figure { margin-top: 0; }
+.project4 .detail-grid img { image-rendering: pixelated; }
+.project4 .timings th, .project4 .timings td { padding: .8rem; }
+.project4 .reading-note { border-left: 3px solid var(--bs-border-color); padding-left: 1rem; color: var(--bs-secondary-color); }
+.project4 .empty-part { min-height: 15rem; }
+@media (max-width: 575.98px) {
+ .project4 .detail-grid { grid-template-columns: 1fr; }
+ .project4 .matrix { font-size: .72rem; border-spacing: .45rem .3rem; }
+ .project4 .method-card { padding: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .image-link img, .home-section { transition: none; } }
+@media print { nav, .project-jump-links, .skip-link { display: none !important; } .section-padding { padding-block: 2rem; } figure, table { break-inside: avoid; } .image-link img { transform: none; } }
